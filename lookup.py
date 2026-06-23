@@ -2,9 +2,10 @@
 """King County permit status lookup.
 
 Search building permits by address, parcel number, or permit number across
-King County jurisdictions. Searches both the city jurisdiction (if on the
-MyBuildingPermit portal) AND King County (for county-level permits like
-septic, critical areas, grading) since both can apply to a single address.
+three layers that can all apply to the same property:
+  1. City jurisdiction (if on MyBuildingPermit portal) — building, mechanical
+  2. King County — septic, critical areas, grading
+  3. WA State L&I — electrical, manufactured/mobile home
 
 Two modes:
   Human:  python3 lookup.py "27927 E Main St"
@@ -153,6 +154,130 @@ def parse_address(address: str) -> tuple[str, str]:
     return "", address.split(",")[0].strip()
 
 
+LNI_URL = "https://secure.lni.wa.gov/epispub/frmPermitSearchMain.aspx"
+
+
+def search_lni(address: str, city: str = "") -> list[dict]:
+    """Search WA State L&I for electrical/manufactured-home permits.
+
+    L&I limits date range to 13 months, so we search the most recent
+    windows. Records before 2019 are not available online.
+    """
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+
+    try:
+        resp = opener.open(urllib.request.Request(
+            LNI_URL, headers={"User-Agent": "Mozilla/5.0"}
+        ), timeout=15)
+        html = resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return []
+
+    vs = re.search(r'id="__VIEWSTATE"[^>]*value="([^"]+)"', html)
+    vsg = re.search(r'id="__VIEWSTATEGENERATOR"[^>]*value="([^"]+)"', html)
+    ev = re.search(r'id="__EVENTVALIDATION"[^>]*value="([^"]+)"', html)
+    if not vs or not ev:
+        return []
+
+    house, street = parse_address(address)
+    # L&I docs: "enter only the house number in the site address field"
+    site_addr = house if house else address.split(",")[0].strip()
+
+    # Search last 3 years in 13-month windows
+    from datetime import timedelta
+    now = datetime.now()
+    windows = []
+    cursor = now
+    for _ in range(3):
+        end = cursor
+        start = cursor - timedelta(days=395)
+        if start < datetime(2019, 1, 1):
+            start = datetime(2019, 1, 1)
+        windows.append((start.strftime("%m/%d/%Y"), end.strftime("%m/%d/%Y")))
+        cursor = start - timedelta(days=1)
+        if cursor < datetime(2019, 1, 1):
+            break
+
+    all_results = []
+    cur_vs, cur_ev = vs.group(1), ev.group(1)
+    cur_vsg = vsg.group(1) if vsg else ""
+
+    for beg, end in windows:
+        form = {
+            "__VIEWSTATE": cur_vs,
+            "__VIEWSTATEGENERATOR": cur_vsg,
+            "__EVENTVALIDATION": cur_ev,
+            "__LASTFOCUS": "",
+            "rdoPermitType": "0",
+            "tbxPermitNumber": "",
+            "tbxBegDate": beg,
+            "tbxEndDate": end,
+            "tbxContractorId": "", "tbxBusinessName": "", "tbxLastName": "",
+            "tbxFirstName": "", "tbxUBI": "", "tbxSiteOwner": "",
+            "tbxSiteLastName": "", "tbxSiteFirstName": "",
+            "tbxSiteAddr1": site_addr,
+            "tbxSiteCity": city,
+            "lstSiteCounty": "17",
+            "rdoCityLimits": "1",
+            "btnSearch": "Search",
+            "URL": "",
+        }
+        data = urllib.parse.urlencode(form).encode("utf-8")
+        try:
+            req = urllib.request.Request(LNI_URL, data=data, headers={
+                "User-Agent": "Mozilla/5.0",
+                "Content-Type": "application/x-www-form-urlencoded",
+            })
+            resp2 = opener.open(req, timeout=30)
+            result = resp2.read().decode("utf-8", errors="replace")
+        except Exception:
+            continue
+
+        # Update viewstate for next request
+        vs2 = re.search(r'id="__VIEWSTATE"[^>]*value="([^"]+)"', result)
+        ev2 = re.search(r'id="__EVENTVALIDATION"[^>]*value="([^"]+)"', result)
+        if vs2:
+            cur_vs = vs2.group(1)
+        if ev2:
+            cur_ev = ev2.group(1)
+
+        if len(result) < 15000:
+            continue
+
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", result, re.DOTALL)
+        for row in rows:
+            cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.DOTALL)
+            cells = [re.sub(r"<[^>]+>", "", c).strip() for c in cells]
+            if len(cells) >= 10 and cells[0] and cells[0] != "Permit Number":
+                all_results.append({
+                    "permit_number": cells[0],
+                    "type": "WA State L&I Electrical",
+                    "status": cells[8],
+                    "description": cells[9],
+                    "address": cells[5],
+                    "jurisdiction": f"WA State L&I ({cells[7]})",
+                    "applied_date": parse_lni_date(cells[1]),
+                    "issued_date": None,
+                    "finaled_date": None,
+                    "expires_date": None,
+                    "site_owner": cells[4],
+                    "site_city": cells[6],
+                })
+
+    return all_results
+
+
+def parse_lni_date(raw: str) -> str | None:
+    """Parse L&I date (M/D/YYYY) to YYYY-MM-DD."""
+    if not raw or raw == "&nbsp;":
+        return None
+    try:
+        return datetime.strptime(raw.strip(), "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     input_type, value = detect_input_type(raw_input)
@@ -231,6 +356,13 @@ def lookup(raw_input: str) -> dict:
                 "note": f"{city.title()} has its own permit system — city-issued permits won't appear here.",
             }
 
+    # Layer 3: WA State L&I electrical permits (address searches only)
+    lni_permits = []
+    if input_type == "address":
+        house, street = parse_address(value)
+        lni_permits = search_lni(f"{house} {street}", city or "")
+        searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
+
     # Deduplicate by permit number
     seen = set()
     unique = []
@@ -239,6 +371,11 @@ def lookup(raw_input: str) -> dict:
         if pn not in seen:
             seen.add(pn)
             unique.append(format_permit(p))
+    for p in lni_permits:
+        pn = p.get("permit_number", "")
+        if pn not in seen:
+            seen.add(pn)
+            unique.append(p)
 
     # Sort by applied date (newest first)
     unique.sort(key=lambda p: p["applied_date"] or "", reverse=True)

@@ -52,6 +52,9 @@ SEPARATE_PORTALS = {
     "enumclaw": "https://www.cityofenumclaw.net/",
     "north bend": "https://www.northbendwa.gov/",
     "black diamond": "https://www.ci.blackdiamond.wa.us/",
+    "des moines": "https://www.desmoineswa.gov/",
+    "normandy park": "https://www.normandyparkwa.gov/",
+    "milton": "https://www.cityofmilton.net/",
 }
 
 
@@ -153,6 +156,16 @@ def parse_address(address: str) -> tuple[str, str]:
         return m.group(1), m.group(2).split(",")[0].strip()
     return "", address.split(",")[0].strip()
 
+
+# Cities that handle their own electrical permits (NOT through L&I).
+# Source: https://www.lni.wa.gov/licensing-permits/electrical/electrical-permits-fees-and-inspections/city-electrical-permits-inspections
+CITIES_OWN_ELECTRICAL = {
+    "aberdeen", "bellingham", "bellevue", "burien", "des moines", "everett",
+    "federal way", "kirkland", "lacey", "lynnwood", "marysville",
+    "mercer island", "milton", "mountlake terrace", "normandy park",
+    "olympia", "port angeles", "redmond", "renton", "sammamish", "seatac",
+    "seattle", "spokane", "tukwila", "vancouver",
+}
 
 LNI_URL = "https://secure.lni.wa.gov/epispub/frmPermitSearchMain.aspx"
 
@@ -357,11 +370,30 @@ def lookup(raw_input: str) -> dict:
             }
 
     # Layer 3: WA State L&I electrical permits (address searches only)
+    # Skip L&I if the city handles its own electrical
     lni_permits = []
+    city_does_electrical = city and city.lower() in CITIES_OWN_ELECTRICAL
     if input_type == "address":
-        house, street = parse_address(value)
-        lni_permits = search_lni(f"{house} {street}", city or "")
-        searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
+        if city_does_electrical:
+            searched_jurisdictions.append(f"WA State L&I — skipped ({city.title()} handles its own electrical)")
+        else:
+            house, street = parse_address(value)
+            lni_permits = search_lni(f"{house} {street}", city or "")
+            searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
+
+    # If the city does its own electrical, flag it
+    if city_does_electrical:
+        portal = SEPARATE_PORTALS.get(city.lower())
+        electrical_note = {
+            "city": city.title(),
+            "portal": portal,
+            "note": f"{city.title()} handles its own electrical permits — check their portal, not L&I.",
+        }
+        if separate_portal_note:
+            separate_portal_note["note"] += f" {city.title()} also handles electrical permits."
+            separate_portal_note["electrical"] = True
+        else:
+            separate_portal_note = electrical_note
 
     # Deduplicate by permit number
     seen = set()

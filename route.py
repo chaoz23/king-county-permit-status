@@ -11,8 +11,13 @@ Usage:
 """
 
 import json
+import os
 import re
 import sys
+from datetime import datetime
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+STALE_DAYS = 90
 
 # --- Permit type detection from work description ---
 
@@ -102,50 +107,7 @@ PERMIT_PATTERNS = {
     },
 }
 
-# --- Jurisdiction routing ---
-
-CITIES_ON_MBP = {
-    "auburn", "bellevue", "bothell", "burien", "edmonds", "federal way",
-    "issaquah", "kenmore", "kirkland", "mercer island", "mill creek",
-    "newcastle", "sammamish", "snoqualmie",
-}
-
-CITIES_OWN_ELECTRICAL = {
-    "aberdeen", "bellingham", "bellevue", "burien", "des moines", "everett",
-    "federal way", "kirkland", "lacey", "lynnwood", "marysville",
-    "mercer island", "milton", "mountlake terrace", "normandy park",
-    "olympia", "port angeles", "redmond", "renton", "sammamish", "seatac",
-    "seattle", "spokane", "tukwila", "vancouver",
-}
-
-CITY_PORTALS = {
-    "seattle": "https://cosaccela.seattle.gov/portal/",
-    "renton": "https://permits.rentonwa.gov/",
-    "kent": "https://epermit.kentwa.gov/",
-    "redmond": "https://permits.redmond.gov/",
-    "shoreline": "https://permits.shorelinewa.gov/",
-    "tukwila": "https://www.tukwilawa.gov/departments/community-development/",
-    "seatac": "https://www.seatacwa.gov/our-city/community-development",
-    "woodinville": "https://www.woodinvillewa.gov/",
-    "covington": "https://www.covingtonwa.gov/",
-    "maple valley": "https://www.maplevalleywa.gov/",
-    "enumclaw": "https://www.cityofenumclaw.net/",
-    "des moines": "https://www.desmoineswa.gov/",
-    "normandy park": "https://www.normandyparkwa.gov/",
-    "burien": "https://www.burienwa.gov/",
-    "federal way": "https://www.cityoffederalway.com/",
-    "auburn": "https://www.auburnwa.gov/",
-    "bellevue": "https://development.bellevuewa.gov/",
-    "kirkland": "https://www.kirklandwa.gov/",
-    "mercer island": "https://www.mercerisland.gov/",
-    "sammamish": "https://www.sammamish.us/",
-    "bothell": "https://www.bothellwa.gov/",
-    "issaquah": "https://www.issaquahwa.gov/",
-    "kenmore": "https://www.kenmorewa.gov/",
-    "newcastle": "https://www.newcastlewa.gov/",
-    "snoqualmie": "https://www.ci.snoqualmie.wa.us/",
-    "edmonds": "https://www.edmondswa.gov/",
-}
+# --- Jurisdiction routing (loaded from routing_data.json) ---
 
 MBP_SEARCH = "https://permitsearch.mybuildingpermit.com/"
 KC_PORTAL = "https://aca-prod.accela.com/KINGCO/Cap/CapHome.aspx?module=Building"
@@ -153,9 +115,33 @@ LNI_PORTAL = "https://secure.lni.wa.gov/epispub/frmPermitSearchMain.aspx"
 KC_SEPTIC = "https://kingcounty.gov/en/dept/dph/health-safety/environmental-health/septic-systems"
 
 
-def detect_city(address: str) -> str | None:
+def load_routing_data() -> dict:
+    data_path = os.path.join(SCRIPT_DIR, "routing_data.json")
+    with open(data_path) as f:
+        return json.load(f)
+
+
+def check_staleness(data: dict) -> dict | None:
+    """Return a warning if routing data is stale."""
+    last = data.get("last_verified", "2000-01-01")
+    age_days = (datetime.now() - datetime.strptime(last, "%Y-%m-%d")).days
+    if age_days > STALE_DAYS:
+        return {
+            "warning": f"Routing data is {age_days} days old (last verified {last}). Jurisdiction assignments may have changed.",
+            "age_days": age_days,
+            "last_verified": last,
+            "action": "Run: python3 refresh.py --apply",
+        }
+    return None
+
+
+def detect_city(address: str, data: dict) -> str | None:
     addr_lower = address.lower().replace(",", " ")
-    all_cities = set(CITY_PORTALS.keys()) | CITIES_ON_MBP | CITIES_OWN_ELECTRICAL
+    all_cities = (
+        set(data.get("city_portals", {}).keys())
+        | set(data.get("cities_on_mbp", []))
+        | set(data.get("cities_own_electrical", []))
+    )
     for city in sorted(all_cities, key=len, reverse=True):
         if city in addr_lower:
             return city
@@ -193,14 +179,17 @@ def detect_permits(work: str) -> list[dict]:
     return matched
 
 
-def route_permit(permit_type: str, city: str | None) -> dict:
+def route_permit(permit_type: str, city: str | None, data: dict) -> dict:
     """Determine which portal handles this permit type for this location."""
     city_lower = city.lower() if city else None
     is_unincorporated = city_lower is None
+    cities_own_elec = set(data.get("cities_own_electrical", []))
+    cities_on_mbp = set(data.get("cities_on_mbp", []))
+    city_portals = data.get("city_portals", {})
 
     if permit_type == "electrical":
-        if city_lower and city_lower in CITIES_OWN_ELECTRICAL:
-            portal = CITY_PORTALS.get(city_lower)
+        if city_lower and city_lower in cities_own_elec:
+            portal = city_portals.get(city_lower)
             return {
                 "handled_by": f"{city.title()} (city handles electrical)",
                 "portal": portal,
@@ -221,29 +210,27 @@ def route_permit(permit_type: str, city: str | None) -> dict:
         }
 
     elif permit_type == "grading":
-        result = {
+        return {
             "handled_by": "King County DPER" if is_unincorporated else f"{city.title()} and/or King County",
-            "portal": KC_PORTAL if is_unincorporated else CITY_PORTALS.get(city_lower, KC_PORTAL),
+            "portal": KC_PORTAL if is_unincorporated else city_portals.get(city_lower, KC_PORTAL),
             "note": "Grading in critical areas may require King County review even within city limits.",
         }
-        return result
 
     else:
-        # building, mechanical, plumbing, fire, fence — city or KC
         if is_unincorporated:
             return {
                 "handled_by": "King County DPER",
                 "portal": KC_PORTAL,
                 "note": "Unincorporated King County — permits through KC DPER.",
             }
-        elif city_lower in CITIES_ON_MBP:
+        elif city_lower in cities_on_mbp:
             return {
                 "handled_by": f"{city.title()} (via MyBuildingPermit)",
                 "portal": MBP_SEARCH,
                 "note": f"{city.title()} uses the MyBuildingPermit.com portal.",
             }
         else:
-            portal = CITY_PORTALS.get(city_lower)
+            portal = city_portals.get(city_lower)
             return {
                 "handled_by": f"{city.title()}",
                 "portal": portal,
@@ -253,12 +240,14 @@ def route_permit(permit_type: str, city: str | None) -> dict:
 
 def route(address: str, work: str) -> dict:
     """Main routing function."""
-    city = detect_city(address)
+    data = load_routing_data()
+    staleness = check_staleness(data)
+    city = detect_city(address, data)
     permits_needed = detect_permits(work)
 
     routes = []
     for permit in permits_needed:
-        routing = route_permit(permit["type"], city)
+        routing = route_permit(permit["type"], city, data)
         routes.append({
             **permit,
             **routing,
@@ -284,7 +273,7 @@ def route(address: str, work: str) -> dict:
         lines.append(f"  {r['description']:35s} → {r['handled_by']}")
     summary = "\n".join(lines)
 
-    return {
+    result = {
         "action": "routed",
         "address": address,
         "location": location,
@@ -292,7 +281,14 @@ def route(address: str, work: str) -> dict:
         "permits": routes,
         "portals": list(by_portal.values()),
         "message": summary,
+        "data_verified": data.get("last_verified"),
     }
+
+    if staleness:
+        result["staleness_warning"] = staleness
+        result["message"] += f"\n\n⚠ {staleness['warning']}"
+
+    return result
 
 
 def main():

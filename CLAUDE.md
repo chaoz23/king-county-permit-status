@@ -13,27 +13,28 @@ Read the `action` field:
 
 The tool auto-detects input type (address vs parcel number vs permit number) and searches King County + the relevant city jurisdiction. For cities not on MyBuildingPermit (Seattle, Renton, Kent, etc.), it flags their separate portal URL.
 
-## TODO: Crack Renton EnerGov API
+## Renton EnerGov Integration (live)
 
-Renton's permit portal (`permitting.rentonwa.gov`) is a Tyler EnerGov Citizen Self Service
-Angular SPA. The REST API pattern hasn't been cracked yet — `/api/resource/Permit/keyvalues/`
-accepts requests but only serves dropdown data, not search results. The actual search goes
-through an Angular service that we need to observe via browser DevTools.
+Renton permits are searched directly via the Tyler EnerGov API at `permitting.rentonwa.gov`.
 
-**To unblock:**
-1. Add `permitting.rentonwa.gov` to the Chrome extension's allowed domains
-   (Claude in Chrome MCP → extension settings → domain allowlist)
-2. Navigate to the portal, search for test permit `B25000947`, and capture the XHR
-3. Replicate the API call in Python
+**Endpoint:** `POST /api/energov/search/search`
+**Required headers:**
+```
+tenantId: 1
+tenantName: RentonWaProd
+Tyler-TenantUrl: RentonWaProd
+Tyler-Tenant-Culture: en-US
+Content-Type: application/json;charset=UTF-8
+```
 
-**Test cases:**
-- Permit number: `B25000947` (Renton building permit)
-- Address: `1817 Morris Ave S, Renton, WA 98055` (should have 2 electrical permits via Renton)
+**Criteria body:** Fetch template from `GET /api/energov/search/criteria`, then set:
+- `SearchModule: 1, FilterModule: 1` (required — module=0 returns counts only)
+- `PageSize: >0` (required — 0 causes 500)
+- `Keyword`: permit number or parcel number
+- `ExactMatch: true` for permit number; `false` for parcel
 
-**What we know so far:**
-- Portal URL: `https://permitting.rentonwa.gov/`
-- webApiBaseUrl: `/api`
-- Framework: Tyler EnerGov CSS (Angular 1.x), hosted by Tyler (cdn.forge.tylertech.com)
-- `/api/resource/Permit/keyvalues/{id}` returns `Success:true, Result:null` for permit numbers
-- No `/api/Cap/Search` or similar endpoint found — all return 404
-- `rentonwa.gov` blocks curl/WebFetch (403) but the portal subdomain responds fine
+**Address search:** Resolve to parcel via KC ArcGIS geocoder first, then search by parcel.
+
+**Test cases confirmed working:**
+- `B25000947` → 2 permits (building + electrical sub-permit) at 1817 Morris Ave S
+- `1817 Morris Ave S, Renton, WA 98055` → 24 permits via parcel 7222000353

@@ -40,7 +40,7 @@ JURIS_BY_NAME = {v.lower(): k for k, v in JURISDICTIONS.items()}
 # Cities NOT on MyBuildingPermit — have their own permit portals
 SEPARATE_PORTALS = {
     "seattle": "https://cosaccela.seattle.gov/portal/",
-    "renton": "https://permits.rentonwa.gov/",
+    "renton": "https://permitting.rentonwa.gov/",
     "kent": "https://epermit.kentwa.gov/",
     "redmond": "https://permits.redmond.gov/",
     "shoreline": "https://permits.shorelinewa.gov/",
@@ -73,7 +73,8 @@ def detect_input_type(raw: str) -> tuple[str, str]:
     s = raw.strip()
     if re.fullmatch(r"\d{10}", s):
         return "parcel", s
-    if re.match(r"[A-Z]{3,4}\d{2}-\d{3,4}", s, re.IGNORECASE):
+    # MBP-style: ADDC21-0275; EnerGov-style: B25000947, E26000458
+    if re.match(r"[A-Z]{1,4}\d{2}[-\d]\d{3,6}$", s, re.IGNORECASE):
         return "permit", s
     return "address", s
 
@@ -291,6 +292,123 @@ def parse_lni_date(raw: str) -> str | None:
         return None
 
 
+# Cities with Tyler EnerGov portals that we can query directly.
+ENERGOV_PORTALS = {
+    "renton": {
+        "url": "https://permitting.rentonwa.gov",
+        "tenant_id": "1",
+        "tenant_name": "RentonWaProd",
+        "tenant_url": "RentonWaProd",
+    },
+}
+
+# KC ArcGIS geocoder used for address → parcel when searching EnerGov cities
+KC_GEOCODER_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Address/KingCo_ParcelAddress_locator/GeocodeServer/findAddressCandidates"
+)
+
+
+def _geocode_parcel(address: str) -> str | None:
+    """Look up King County parcel number for an address via ArcGIS geocoder."""
+    try:
+        params = urllib.parse.urlencode({
+            "SingleLine": address,
+            "outFields": "*",
+            "outSR": "4326",
+            "maxLocations": "3",
+            "f": "json",
+        })
+        url = KC_GEOCODER_URL + "?" + params
+        resp = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=10)
+        data = json.loads(resp.read().decode())
+        for c in data.get("candidates", []):
+            if c.get("score", 0) < 80:
+                continue
+            attrs = c.get("attributes") or {}
+            pn = attrs.get("PIN") or attrs.get("ParcelNumber") or ""
+            pn = re.sub(r"[\s\-]", "", str(pn))
+            if re.fullmatch(r"\d{10}", pn):
+                return pn
+    except Exception:
+        pass
+    return None
+
+
+def search_energov(portal_key: str, keyword: str, exact: bool = False) -> list[dict]:
+    """Search a Tyler EnerGov Citizen Self Service portal.
+
+    Returns normalized permit dicts or empty list on failure.
+    Tenant headers discovered from JS bundle interceptor.
+    """
+    cfg = ENERGOV_PORTALS[portal_key]
+    base = cfg["url"]
+
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "tenantId": cfg["tenant_id"],
+        "tenantName": cfg["tenant_name"],
+        "Tyler-TenantUrl": cfg["tenant_url"],
+        "Tyler-Tenant-Culture": "en-US",
+        "Content-Type": "application/json;charset=UTF-8",
+    }
+
+    try:
+        opener.open(urllib.request.Request(base + "/", headers={"User-Agent": "Mozilla/5.0"}), timeout=10)
+        raw = json.loads(opener.open(urllib.request.Request(
+            base + "/api/energov/search/criteria", headers=headers), timeout=10).read().decode())["Result"]
+    except Exception:
+        return []
+
+    raw["Keyword"] = keyword
+    raw["ExactMatch"] = exact
+    raw["SearchModule"] = 1
+    raw["FilterModule"] = 1
+    raw["PageSize"] = 25
+    raw["PageNumber"] = 1
+    raw["PermitCriteria"]["PageSize"] = 25
+    raw["PermitCriteria"]["PageNumber"] = 1
+
+    try:
+        resp = opener.open(urllib.request.Request(
+            base + "/api/energov/search/search",
+            data=json.dumps(raw).encode(), headers=headers), timeout=30)
+        result = json.loads(resp.read().decode())
+    except Exception:
+        return []
+
+    if not result.get("Success"):
+        return []
+
+    permits = []
+    for e in (result.get("Result") or {}).get("EntityResults") or []:
+        addr = e.get("AddressDisplay") or ((e.get("Address") or {}).get("FullAddress") or "")
+        permits.append({
+            "permit_number": e.get("CaseNumber", ""),
+            "type": e.get("CaseType", ""),
+            "status": e.get("CaseStatus", ""),
+            "description": e.get("Description") or e.get("ProjectName") or "",
+            "address": addr.strip(),
+            "jurisdiction": portal_key.title(),
+            "applied_date": _iso_date(e.get("ApplyDate")),
+            "issued_date": _iso_date(e.get("IssueDate")),
+            "finaled_date": _iso_date(e.get("FinalDate")),
+            "expires_date": _iso_date(e.get("ExpireDate")),
+            "portal": base,
+        })
+    return permits
+
+
+def _iso_date(raw: str | None) -> str | None:
+    """Convert ISO datetime string to YYYY-MM-DD."""
+    if not raw:
+        return None
+    return raw[:10] if len(raw) >= 10 else raw
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     input_type, value = detect_input_type(raw_input)
@@ -311,7 +429,7 @@ def lookup(raw_input: str) -> dict:
     separate_portal_note = None
 
     if input_type == "permit":
-        # Search all jurisdictions for the permit number
+        # Search MyBuildingPermit jurisdictions first
         for jid, jname in JURISDICTIONS.items():
             results = search_permits(opener, token, jid,
                                      search_by="PermitNumber", permit_number=value)
@@ -321,6 +439,15 @@ def lookup(raw_input: str) -> dict:
                 break  # permit numbers are unique
             elif isinstance(results, str):
                 errors.append(f"{jname}: {results}")
+
+        # Also check EnerGov portals (permit numbers are unique to their portal)
+        for portal_key, pcfg in ENERGOV_PORTALS.items():
+            eg = search_energov(portal_key, value, exact=True)
+            if eg:
+                all_permits.extend(eg)
+                searched_jurisdictions.append(f"{portal_key.title()} (EnerGov)")
+            else:
+                searched_jurisdictions.append(f"{portal_key.title()} (EnerGov — not found)")
 
     elif input_type == "parcel":
         # Search King County + city jurisdiction if known
@@ -335,7 +462,13 @@ def lookup(raw_input: str) -> dict:
                 all_permits.extend(results)
             elif isinstance(results, str):
                 errors.append(f"{jname}: {results}")
-        if city and city in SEPARATE_PORTALS:
+
+        # EnerGov cities: search by parcel number as keyword
+        if city and city in ENERGOV_PORTALS:
+            eg = search_energov(city, value, exact=False)
+            all_permits.extend(eg)
+            searched_jurisdictions.append(f"{city.title()} (EnerGov)")
+        elif city and city in SEPARATE_PORTALS:
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -362,7 +495,16 @@ def lookup(raw_input: str) -> dict:
             elif isinstance(results, str) and "too many" in results.lower():
                 errors.append(f"{jname}: {results}")
 
-        if city and city in SEPARATE_PORTALS:
+        # EnerGov cities: resolve parcel, then search by parcel
+        if city and city in ENERGOV_PORTALS:
+            parcel = _geocode_parcel(value)
+            if parcel:
+                eg = search_energov(city, parcel, exact=False)
+                all_permits.extend(eg)
+                searched_jurisdictions.append(f"{city.title()} (EnerGov, parcel {parcel})")
+            else:
+                searched_jurisdictions.append(f"{city.title()} (EnerGov — parcel lookup failed)")
+        elif city and city in SEPARATE_PORTALS:
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -381,8 +523,8 @@ def lookup(raw_input: str) -> dict:
             lni_permits = search_lni(f"{house} {street}", city or "")
             searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
 
-    # If the city does its own electrical, flag it
-    if city_does_electrical:
+    # If the city does its own electrical and we can't search it, flag it
+    if city_does_electrical and city not in ENERGOV_PORTALS:
         portal = SEPARATE_PORTALS.get(city.lower())
         electrical_note = {
             "city": city.title(),
@@ -396,13 +538,19 @@ def lookup(raw_input: str) -> dict:
             separate_portal_note = electrical_note
 
     # Deduplicate by permit number
+    # all_permits may contain raw MBP dicts (PermitNumber) or pre-normalized EnerGov dicts (permit_number)
     seen = set()
     unique = []
     for p in all_permits:
-        pn = p.get("PermitNumber", "")
+        if "permit_number" in p:  # already normalized (EnerGov)
+            pn = p["permit_number"]
+            normalized = p
+        else:  # raw MBP dict
+            pn = p.get("PermitNumber", "")
+            normalized = format_permit(p)
         if pn not in seen:
             seen.add(pn)
-            unique.append(format_permit(p))
+            unique.append(normalized)
     for p in lni_permits:
         pn = p.get("permit_number", "")
         if pn not in seen:

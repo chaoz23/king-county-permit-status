@@ -112,6 +112,7 @@ print(json.dumps(open_permits, indent=2))
 
 **Related tools in this series:**
 - [`king-county-address-to-parcel-number`](https://github.com/chaoz23/king-county-address-to-parcel-number) — resolve an address to its parcel number
+- [`wa-contractor-license`](https://github.com/chaoz23/wa-contractor-license) — verify WA contractor license status and violations
 - [`king-county-property-tax-appeal`](https://github.com/chaoz23/king-county-property-tax-appeal) — build a filing-ready tax appeal packet
 
 ## Requirements

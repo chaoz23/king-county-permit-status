@@ -1,12 +1,13 @@
 # King County Permit Status
 
-Look up building permit status for any King County, WA address. Searches across jurisdictions since county-level permits (septic, critical areas, grading) and city-level permits (building, mechanical) can both apply to a single address.
+Look up building permit history and status for any King County, WA property. Searches across jurisdictions — county-level permits (septic, critical areas, grading) and city-level permits (building, mechanical, electrical) can all apply to the same address.
 
 ```bash
 python3 lookup.py "27927 E Main St"           # by address
 python3 lookup.py "7222000353"                  # by parcel number
-python3 lookup.py "ADDC21-0275"                 # by permit number
+python3 lookup.py "B25000947"                   # by permit number
 python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
+python3 lookup.py --schema                      # print tool definition
 ```
 
 ## What you get
@@ -14,59 +15,109 @@ python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
 ```json
 {
   "action": "found",
-  "permit_count": 5,
-  "searched": ["King County"],
+  "permit_count": 2,
+  "searched": ["Renton (EnerGov)"],
   "permits": [
     {
-      "permit_number": "ADDC24-0217",
-      "type": "Building/Residential Building/Addition-Improvement",
-      "status": "Permit Expiration Notice",
-      "description": "CONSTRUCT 780 SF ADDITION...",
-      "address": "27927 E MAIN ST",
-      "jurisdiction": "King County",
-      "applied_date": "2024-04-05",
-      "issued_date": "2024-06-24",
+      "permit_number": "E26000458",
+      "type": "Residential Electrical Permit",
+      "status": "Issued",
+      "description": "Electrical Work (Garage & Garage Exterior): ...",
+      "address": "1817 Morris Ave S Renton WA 98055",
+      "jurisdiction": "Renton",
+      "applied_date": "2026-01-28",
+      "issued_date": "2026-01-28",
       "finaled_date": null,
-      "expires_date": null
+      "expires_date": "2027-07-27",
+      "portal": "https://permitting.rentonwa.gov"
     }
   ]
 }
 ```
 
-## Multi-jurisdiction coverage
-
-The tool searches the [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) portal which covers 15 jurisdictions:
-
-Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie
-
-**Cities with separate portals** (not searched, but flagged with a link):
-
-Seattle, Renton, Kent, Redmond, Shoreline, Tukwila, Covington, Maple Valley, Enumclaw, Woodinville, and others
-
-When you search an address in a city with a separate portal, the tool:
-1. Searches King County anyway (catches county-level permits)
-2. Flags that the city has its own system with a link to their portal
-
-## Agent pipeline contract
-
 | Field | Description |
 |---|---|
 | `action` | `found` (permits returned), `none` (no matches), `refine` (connection issue) |
-| `permit_count` | Number of permits found |
-| `permits` | Array of permit records sorted newest-first |
+| `permit_count` | Number of unique permits found |
+| `permits` | Array sorted newest `applied_date` first |
 | `searched` | Which jurisdictions were searched |
-| `separate_portal` | If the city has its own system: city name + portal URL |
+| `separate_portal` | If the city has an unsupported portal: city name + URL |
 
-| Exit code | Meaning |
+Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`.
+
+## Multi-jurisdiction coverage
+
+| Source | Cities / scope |
 |---|---|
-| 0 | Permits found |
-| 1 | No permits or search issue |
-| 2 | Bad input |
+| [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) | Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie |
+| Renton EnerGov (live API) | All Renton permit types including electrical |
+| WA State L&I | Electrical permits for cities not handling their own (2019+) |
+
+**Cities with separate portals** (flagged with URL, not searched): Seattle, Kent, Redmond, Shoreline, Tukwila, SeaTac, Woodinville, Covington, Maple Valley, Enumclaw.
+
+## Exit codes
+
+| Code | Action | Meaning |
+|---|---|---|
+| 0 | `found` | `permits[]` is populated |
+| 1 | `none` / `refine` | No permits or connection issue |
+| 2 | `reject` | Bad input |
+
+## For agents
+
+`tool.json` at the repo root contains the full tool definition in Anthropic/OpenAI tool-call format. An agent can load it directly or fetch the live version:
+
+```bash
+python3 lookup.py --schema
+```
+
+```json
+{
+  "name": "king_county_permit_status",
+  "description": "Look up building permit history and status for any King County, WA property...",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Street address, 10-digit parcel number, or permit number..."
+      }
+    },
+    "required": ["query"]
+  },
+  "output_schema": { ... },
+  "invocation": {
+    "command": "python3 lookup.py --pipe \"{query}\"",
+    "exit_codes": {
+      "0": "action=found — permits[] is populated",
+      "1": "action=none or refine — no permits or connection issue",
+      "2": "action=reject — bad input"
+    }
+  }
+}
+```
+
+**Pipeline pattern:**
+```bash
+# Get all permits at an address, extract open ones
+python3 lookup.py --pipe "1817 Morris Ave S, Renton WA" \
+  | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+open_statuses = {'Issued', 'In Review', 'On Hold', 'Pending'}
+open_permits = [p for p in d.get('permits', []) if p['status'] in open_statuses]
+print(json.dumps(open_permits, indent=2))
+"
+```
+
+**Related tools in this series:**
+- [`king-county-address-to-parcel-number`](https://github.com/chaoz23/king-county-address-to-parcel-number) — resolve an address to its parcel number
+- [`king-county-property-tax-appeal`](https://github.com/chaoz23/king-county-property-tax-appeal) — build a filing-ready tax appeal packet
 
 ## Requirements
 
-- Python 3.10+ (stdlib only)
-- Network access to `permitsearch.mybuildingpermit.com`
+- Python 3.10+ (stdlib only, no dependencies)
+- Network access to `permitsearch.mybuildingpermit.com`, `permitting.rentonwa.gov`, `secure.lni.wa.gov`
 
 ## License
 

@@ -596,17 +596,105 @@ def lookup(raw_input: str) -> dict:
 EXIT_CODES = {"found": 0, "none": 1, "refine": 1, "reject": 2}
 
 
+TOOL_SCHEMA = {
+    "name": "king_county_permit_status",
+    "description": (
+        "Look up building permit history and status for any King County, WA property. "
+        "Accepts a street address, 10-digit parcel number, or permit number. "
+        "Searches MyBuildingPermit.com (14 cities + King County), Renton EnerGov (live API), "
+        "and WA State L&I (electrical permits). Returns all matching permits sorted newest-first. "
+        "Use for due diligence, permit tracking, or verifying contractor pull history."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "One of: street address ('1817 Morris Ave S, Renton WA 98055'), "
+                    "10-digit parcel number ('7222000353'), "
+                    "or permit number ('B25000947', 'ADDC21-0275', 'E26000458'). "
+                    "Input type is auto-detected."
+                ),
+            }
+        },
+        "required": ["query"],
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["found", "none", "refine", "reject"],
+                "description": (
+                    "found — permits[] is populated; "
+                    "none — no permits found; "
+                    "refine — connection issue, retry; "
+                    "reject — bad input"
+                ),
+            },
+            "permit_count": {"type": "integer"},
+            "permits": {
+                "type": "array",
+                "description": "Permit records sorted newest applied_date first.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "permit_number": {"type": "string"},
+                        "type": {"type": "string", "description": "Permit category (e.g. 'Residential Electrical Permit')"},
+                        "status": {"type": "string", "description": "e.g. Issued, Complete, On Hold, Withdrawn, Expired"},
+                        "description": {"type": "string", "description": "Scope of work"},
+                        "address": {"type": "string"},
+                        "jurisdiction": {"type": "string"},
+                        "applied_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "issued_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "finaled_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "expires_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
+                        "portal": {"type": ["string", "null"], "description": "Source portal URL (EnerGov results only)"},
+                    },
+                },
+            },
+            "searched": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Jurisdictions searched (e.g. ['King County', 'Renton (EnerGov)']).",
+            },
+            "separate_portal": {
+                "type": "object",
+                "description": "Present when the city has its own portal not yet searchable. Includes city, portal URL, note.",
+            },
+            "message": {"type": "string"},
+        },
+        "required": ["action", "message"],
+    },
+    "invocation": {
+        "command": "python3 lookup.py --pipe \"{query}\"",
+        "exit_codes": {
+            "0": "action=found — permits[] is populated",
+            "1": "action=none or refine — no permits or connection issue",
+            "2": "action=reject — bad input",
+        },
+    },
+}
+
+
 def main():
     args = sys.argv[1:]
     pipe_mode = "--pipe" in args
-    args = [a for a in args if a != "--pipe"]
+    schema_mode = "--schema" in args
+    args = [a for a in args if a not in ("--pipe", "--schema")]
+
+    if schema_mode:
+        print(json.dumps(TOOL_SCHEMA, indent=2))
+        sys.exit(0)
 
     if not args:
-        print("Usage: lookup.py [--pipe] <address|parcel|permit_number>")
+        print("Usage: lookup.py [--pipe] [--schema] <address|parcel|permit_number>")
         print('  lookup.py "27927 E Main St"              # by address')
         print('  lookup.py "7222000353"                    # by parcel number')
         print('  lookup.py "ADDC21-0275"                   # by permit number')
         print('  lookup.py --pipe "27927 E Main St"        # agent mode')
+        print('  lookup.py --schema                        # print tool definition')
         sys.exit(2)
 
     query = " ".join(args)

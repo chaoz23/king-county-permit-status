@@ -10,6 +10,9 @@ python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
 python3 lookup.py --schema                      # print tool definition
 ```
 
+Parcel-number searches query King County and every supported live city
+portal because a bare parcel number does not identify its city jurisdiction.
+
 ## What you get
 
 ```json
@@ -119,6 +122,14 @@ print(json.dumps(open_permits, indent=2))
 
 - Python 3.10+ (stdlib only, no dependencies)
 - Network access to `permitsearch.mybuildingpermit.com`, `permitting.rentonwa.gov`, `secure.lni.wa.gov`
+
+## Development
+
+Run the network-free regression suite with:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
 
 ## License
 

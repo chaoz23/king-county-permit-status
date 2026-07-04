@@ -414,25 +414,35 @@ def lookup(raw_input: str) -> dict:
     input_type, value = detect_input_type(raw_input)
     city = detect_city(raw_input)
 
+    opener = None
+    token = None
+    mbp_connection_error = None
     try:
         opener, token = get_session()
     except Exception as e:
-        return {
-            "action": "refine",
-            "message": f"Could not connect to permit search: {e}",
-            "permits": [], "input": raw_input,
-        }
+        # MyBuildingPermit is only one source. Keep searching independent
+        # sources such as EnerGov instead of failing the whole lookup.
+        mbp_connection_error = f"Could not connect to MyBuildingPermit: {e}"
 
     all_permits = []
     searched_jurisdictions = []
     errors = []
     separate_portal_note = None
+    if mbp_connection_error:
+        errors.append(mbp_connection_error)
+
+    def search_mbp(*args, **kwargs):
+        if opener is None or token is None:
+            return None
+        return search_permits(opener, token, *args, **kwargs)
 
     if input_type == "permit":
         # Search MyBuildingPermit jurisdictions first
         for jid, jname in JURISDICTIONS.items():
-            results = search_permits(opener, token, jid,
-                                     search_by="PermitNumber", permit_number=value)
+            results = search_mbp(jid, search_by="PermitNumber",
+                                 permit_number=value)
+            if results is None:
+                break
             if isinstance(results, list) and results:
                 all_permits.extend(results)
                 searched_jurisdictions.append(jname)
@@ -455,7 +465,9 @@ def lookup(raw_input: str) -> dict:
         if city and city in JURIS_BY_NAME:
             juris_to_search.append(JURIS_BY_NAME[city])
         for jid in juris_to_search:
-            results = search_permits(opener, token, jid, parcel=value)
+            results = search_mbp(jid, parcel=value)
+            if results is None:
+                continue
             jname = JURISDICTIONS.get(jid, jid)
             searched_jurisdictions.append(jname)
             if isinstance(results, list):
@@ -463,17 +475,12 @@ def lookup(raw_input: str) -> dict:
             elif isinstance(results, str):
                 errors.append(f"{jname}: {results}")
 
-        # EnerGov cities: search by parcel number as keyword
-        if city and city in ENERGOV_PORTALS:
-            eg = search_energov(city, value, exact=False)
+        # A bare parcel number has no city text to route on. Query every
+        # configured EnerGov portal so supported city permits are not missed.
+        for portal_key in ENERGOV_PORTALS:
+            eg = search_energov(portal_key, value, exact=False)
             all_permits.extend(eg)
-            searched_jurisdictions.append(f"{city.title()} (EnerGov)")
-        elif city and city in SEPARATE_PORTALS:
-            separate_portal_note = {
-                "city": city.title(),
-                "portal": SEPARATE_PORTALS[city],
-                "note": f"{city.title()} has its own permit system — city-issued permits won't appear here.",
-            }
+            searched_jurisdictions.append(f"{portal_key.title()} (EnerGov)")
 
     else:  # address
         house, street = parse_address(value)
@@ -486,8 +493,9 @@ def lookup(raw_input: str) -> dict:
             juris_to_search = list(JURISDICTIONS.keys())
 
         for jid in juris_to_search:
-            results = search_permits(opener, token, jid,
-                                     house=house, street=street)
+            results = search_mbp(jid, house=house, street=street)
+            if results is None:
+                continue
             jname = JURISDICTIONS.get(jid, jid)
             searched_jurisdictions.append(jname)
             if isinstance(results, list):
@@ -573,13 +581,19 @@ def lookup(raw_input: str) -> dict:
         suggestions = ["Try searching by street name without the city"]
         if errors:
             suggestions.append(f"Some searches had issues: {'; '.join(errors)}")
+        action = "refine" if errors else "none"
+        message = (
+            f"Search incomplete: {'; '.join(errors)}"
+            if errors
+            else f"No permits found in {', '.join(set(searched_jurisdictions))}."
+        )
         result = {
-            "action": "none",
+            "action": action,
             "permit_count": 0,
             "searched": searched_jurisdictions,
             "permits": [],
             "input": raw_input,
-            "message": f"No permits found in {', '.join(set(searched_jurisdictions))}.",
+            "message": message,
             "suggestions": suggestions,
         }
 

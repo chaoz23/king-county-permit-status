@@ -73,6 +73,9 @@ def detect_input_type(raw: str) -> tuple[str, str]:
     s = raw.strip()
     if re.fullmatch(r"\d{10}", s):
         return "parcel", s
+    # Bellevue-style: 23-127651-LP or 23 127651 LP
+    if re.fullmatch(r"\d{2}[-\s]\d{6}[-\s][A-Z]{1,3}", s, re.IGNORECASE):
+        return "permit", s
     # MBP-style: ADDC21-0275; EnerGov-style: B25000947, E26000458
     if re.match(r"[A-Z]{1,4}\d{2}[-\d]\d{3,6}$", s, re.IGNORECASE):
         return "permit", s
@@ -409,6 +412,99 @@ def _iso_date(raw: str | None) -> str | None:
     return raw[:10] if len(raw) >= 10 else raw
 
 
+# Official Bellevue Open Data permit layer. The city publishes a live snapshot
+# of its permitting system from 1998 onward and refreshes it daily.
+BELLEVUE_PERMITS_URL = (
+    "https://services1.arcgis.com/EYzEZbDhXZjURPbP/arcgis/rest/services"
+    "/Bellevue_Permits/FeatureServer/0/query"
+)
+BELLEVUE_OPEN_DATA = "https://data.bellevuewa.gov/"
+
+
+def _arcgis_date(raw: int | None) -> str | None:
+    if raw is None:
+        return None
+    return datetime.fromtimestamp(raw / 1000).strftime("%Y-%m-%d")
+
+
+def _sql_string(value: str) -> str:
+    """Quote user text for an ArcGIS standardized SQL string literal."""
+    return value.replace("'", "''")
+
+
+def search_bellevue(input_type: str, value: str) -> list[dict] | str:
+    """Search Bellevue's official daily Open Data permit snapshot."""
+    if input_type == "permit":
+        permit_number = re.sub(r"[-\s]+", " ", value.strip().upper())
+        where = f"PERMITNUMBER = '{_sql_string(permit_number)}'"
+    elif input_type == "parcel":
+        parcel = re.sub(r"\D", "", value)
+        where = f"PARCELNUMBER = '{parcel}'"
+    else:
+        house, street = parse_address(value)
+        address = f"{house} {street}".strip().upper()
+        if not address:
+            return []
+        where = f"UPPER(SITEADDRESS) LIKE '{_sql_string(address)}%'"
+
+    fields = ",".join([
+        "PERMITNUMBER", "PERMITTYPE", "PERMITTYPEDESCRIPTION",
+        "SITEADDRESS", "CITY", "STATE", "ZIPCODE", "PERMITSTATUS",
+        "PROJECTNAME", "PROJECTDESCRIPTION", "APPLIEDDATE", "ISSUEDDATE",
+        "FINALEDDATE", "EXPIREDATE", "MBPSTATUSSITE",
+    ])
+    permits = []
+    offset = 0
+    while True:
+        params = urllib.parse.urlencode({
+            "where": where,
+            "outFields": fields,
+            "returnGeometry": "false",
+            "orderByFields": "APPLIEDDATE DESC",
+            "resultOffset": offset,
+            "resultRecordCount": 1000,
+            "f": "json",
+        })
+        try:
+            req = urllib.request.Request(
+                BELLEVUE_PERMITS_URL + "?" + params,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            data = json.loads(urllib.request.urlopen(req, timeout=30).read().decode())
+        except Exception as e:
+            return f"Error: {e}"
+
+        if data.get("error"):
+            return f"Error: {data['error'].get('message', 'Bellevue search failed')}"
+
+        features = data.get("features") or []
+        for feature in features:
+            raw = feature.get("attributes") or {}
+            address = " ".join(filter(None, [
+                raw.get("SITEADDRESS"), raw.get("CITY"),
+                raw.get("STATE"), raw.get("ZIPCODE"),
+            ]))
+            permits.append({
+                "permit_number": raw.get("PERMITNUMBER") or "",
+                "type": raw.get("PERMITTYPEDESCRIPTION") or raw.get("PERMITTYPE") or "",
+                "status": raw.get("PERMITSTATUS") or "",
+                "description": raw.get("PROJECTDESCRIPTION") or raw.get("PROJECTNAME") or "",
+                "address": address,
+                "jurisdiction": "Bellevue",
+                "applied_date": _arcgis_date(raw.get("APPLIEDDATE")),
+                "issued_date": _arcgis_date(raw.get("ISSUEDDATE")),
+                "finaled_date": _arcgis_date(raw.get("FINALEDDATE")),
+                "expires_date": _arcgis_date(raw.get("EXPIREDATE")),
+                "portal": raw.get("MBPSTATUSSITE") or BELLEVUE_OPEN_DATA,
+            })
+
+        if not data.get("exceededTransferLimit") or not features:
+            break
+        offset += len(features)
+
+    return permits
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     input_type, value = detect_input_type(raw_input)
@@ -460,11 +556,9 @@ def lookup(raw_input: str) -> dict:
                 searched_jurisdictions.append(f"{portal_key.title()} (EnerGov — not found)")
 
     elif input_type == "parcel":
-        # Search King County + city jurisdiction if known
-        juris_to_search = ["20"]  # always search KC
-        if city and city in JURIS_BY_NAME:
-            juris_to_search.append(JURIS_BY_NAME[city])
-        for jid in juris_to_search:
+        # A bare parcel number has no city text to route on. Query every
+        # MyBuildingPermit jurisdiction so city permits are not missed.
+        for jid in JURISDICTIONS:
             results = search_mbp(jid, parcel=value)
             if results is None:
                 continue
@@ -519,6 +613,16 @@ def lookup(raw_input: str) -> dict:
                 "note": f"{city.title()} has its own permit system — city-issued permits won't appear here.",
             }
 
+    # Bellevue's former EnerGov hostname is retired. Its official Open Data
+    # layer is current, daily refreshed, and supports all three input types.
+    if input_type in ("permit", "parcel") or city in (None, "bellevue"):
+        bellevue = search_bellevue(input_type, value)
+        searched_jurisdictions.append("Bellevue Open Data")
+        if isinstance(bellevue, list):
+            all_permits.extend(bellevue)
+        else:
+            errors.append(f"Bellevue Open Data: {bellevue}")
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -532,7 +636,8 @@ def lookup(raw_input: str) -> dict:
             searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
 
     # If the city does its own electrical and we can't search it, flag it
-    if city_does_electrical and city not in ENERGOV_PORTALS:
+    city_permits_searched = city in JURIS_BY_NAME or city in ENERGOV_PORTALS
+    if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())
         electrical_note = {
             "city": city.title(),
@@ -615,8 +720,9 @@ TOOL_SCHEMA = {
     "description": (
         "Look up building permit history and status for any King County, WA property. "
         "Accepts a street address, 10-digit parcel number, or permit number. "
-        "Searches MyBuildingPermit.com (14 cities + King County), Renton EnerGov (live API), "
-        "and WA State L&I (electrical permits). Returns all matching permits sorted newest-first. "
+        "Searches MyBuildingPermit.com (14 cities + King County), Bellevue Open Data, "
+        "Renton EnerGov (live API), and WA State L&I (electrical permits). "
+        "Returns all matching permits sorted newest-first. "
         "Use for due diligence, permit tracking, or verifying contractor pull history."
     ),
     "input_schema": {
@@ -627,7 +733,7 @@ TOOL_SCHEMA = {
                 "description": (
                     "One of: street address ('1817 Morris Ave S, Renton WA 98055'), "
                     "10-digit parcel number ('7222000353'), "
-                    "or permit number ('B25000947', 'ADDC21-0275', 'E26000458'). "
+                    "or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). "
                     "Input type is auto-detected."
                 ),
             }
@@ -664,7 +770,7 @@ TOOL_SCHEMA = {
                         "issued_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
                         "finaled_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
                         "expires_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
-                        "portal": {"type": ["string", "null"], "description": "Source portal URL (EnerGov results only)"},
+                        "portal": {"type": ["string", "null"], "description": "Source permit or portal URL when available"},
                     },
                 },
             },

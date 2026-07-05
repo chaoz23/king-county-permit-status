@@ -6,7 +6,7 @@
     "properties": {
       "query": {
         "type": "string",
-        "description": "One of: street address ('1817 Morris Ave S, Renton WA 98055'), 10-digit parcel number ('7222000353'), or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). Input type is auto-detected."
+        "description": "One of: street address ('1817 Morris Ave S, Renton WA 98055'), 10-digit parcel number (plain '7222000353' or formatted '722200-0353'), or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). Input type is auto-detected."
       }
     },
     "required": [

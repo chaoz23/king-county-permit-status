@@ -26,6 +26,8 @@ import http.cookiejar
 from calendar import monthrange
 from datetime import datetime, timedelta
 
+from city_utils import detect_city_name
+
 SEARCH_URL = "https://permitsearch.mybuildingpermit.com/SearchPermits/GetSearchResults"
 BASE_URL = "https://permitsearch.mybuildingpermit.com/"
 
@@ -40,6 +42,16 @@ JURIS_BY_NAME = {v.lower(): k for k, v in JURISDICTIONS.items()}
 
 # Cities NOT on MyBuildingPermit — have their own permit portals
 SEPARATE_PORTALS = {
+    "algona": "https://www.algonawa.gov/",
+    "beaux arts village": "https://beauxarts-wa.gov/",
+    "black diamond": "https://www.ci.blackdiamond.wa.us/",
+    "carnation": "https://www.carnationwa.gov/",
+    "clyde hill": "https://www.clydehill.org/",
+    "duvall": "https://www.duvallwa.gov/",
+    "hunts point": "https://huntspoint-wa.gov/",
+    "lake forest park": "https://www.cityoflfp.gov/",
+    "medina": "https://www.medina-wa.gov/",
+    "pacific": "https://www.pacificwa.gov/",
     "seattle": "https://cosaccela.seattle.gov/portal/",
     "renton": "https://permitting.rentonwa.gov/",
     "kent": "https://epermit.kentwa.gov/",
@@ -52,10 +64,11 @@ SEPARATE_PORTALS = {
     "maple valley": "https://www.maplevalleywa.gov/",
     "enumclaw": "https://www.cityofenumclaw.net/",
     "north bend": "https://www.northbendwa.gov/",
-    "black diamond": "https://www.ci.blackdiamond.wa.us/",
+    "skykomish": "https://skykomishwa.gov/",
     "des moines": "https://www.desmoineswa.gov/",
     "normandy park": "https://www.normandyparkwa.gov/",
     "milton": "https://www.cityofmilton.net/",
+    "yarrow point": "https://yarrowpointwa.gov/",
 }
 
 
@@ -72,8 +85,9 @@ def parse_date(ms_date: str | None) -> str | None:
 def detect_input_type(raw: str) -> tuple[str, str]:
     """Detect if input is a permit number, parcel number, or address."""
     s = raw.strip()
-    if re.fullmatch(r"\d{10}", s):
-        return "parcel", s
+    parcel = re.sub(r"[\s-]", "", s)
+    if re.fullmatch(r"\d{10}", parcel):
+        return "parcel", parcel
     # Bellevue-style: 23-127651-LP or 23 127651 LP
     if re.fullmatch(r"\d{2}[-\s]\d{6}[-\s][A-Z]{1,3}", s, re.IGNORECASE):
         return "permit", s
@@ -85,11 +99,8 @@ def detect_input_type(raw: str) -> tuple[str, str]:
 
 def detect_city(address: str) -> str | None:
     """Try to extract a city name from the address string."""
-    addr_lower = address.lower().replace(",", " ")
-    for city in list(JURIS_BY_NAME.keys()) + list(SEPARATE_PORTALS.keys()):
-        if city in addr_lower:
-            return city
-    return None
+    cities = (set(JURIS_BY_NAME) - {"king county"}) | set(SEPARATE_PORTALS)
+    return detect_city_name(address, cities)
 
 
 def get_session():
@@ -546,6 +557,16 @@ def search_bellevue(input_type: str, value: str) -> list[dict] | str:
 
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
+    if not raw_input.strip():
+        return {
+            "action": "reject",
+            "permit_count": 0,
+            "searched": [],
+            "permits": [],
+            "input": raw_input,
+            "message": "Query must not be blank.",
+        }
+
     input_type, value = detect_input_type(raw_input)
     city = detect_city(raw_input)
 
@@ -645,6 +666,14 @@ def lookup(raw_input: str) -> dict:
                 searched_jurisdictions.append(f"{city.title()} (EnerGov, parcel {parcel})")
             else:
                 searched_jurisdictions.append(f"{city.title()} (EnerGov — parcel lookup failed)")
+                separate_portal_note = {
+                    "city": city.title(),
+                    "portal": ENERGOV_PORTALS[city]["url"],
+                    "note": (
+                        f"Could not resolve this address to a parcel for the "
+                        f"{city.title()} search — check the city portal directly."
+                    ),
+                }
         elif city and city in SEPARATE_PORTALS:
             separate_portal_note = {
                 "city": city.title(),
@@ -774,7 +803,8 @@ TOOL_SCHEMA = {
                 "type": "string",
                 "description": (
                     "One of: street address ('1817 Morris Ave S, Renton WA 98055'), "
-                    "10-digit parcel number ('7222000353'), "
+                    "10-digit parcel number (plain '7222000353' or formatted "
+                    "'722200-0353'), "
                     "or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). "
                     "Input type is auto-detected."
                 ),

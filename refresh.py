@@ -43,7 +43,8 @@ def fetch_lni_cities() -> set[str]:
     cities = set()
     noise = {"permit", "inspect", "contact", "click", "visit", "map", "office",
              "more", "detailed", "location", "http", "here", "back", "home",
-             "page", "information", "about", "find", "search", "view", "list"}
+             "page", "information", "about", "find", "search", "view", "list",
+             "county", "pud", "utility", "district", "power"}
 
     items = re.findall(r"<li[^>]*>([^<]+)</li>", html)
     for item in items:
@@ -97,7 +98,9 @@ def check_url(url: str) -> tuple[bool, str]:
                 return True, f"redirects → {final_url[:60]}"
             return True, "OK"
     except urllib.error.HTTPError as e:
-        return e.code < 500, f"HTTP {e.code}"
+        # Auth, method, and throttling responses still prove the portal exists.
+        # Missing/bad-request and server errors indicate an unusable URL.
+        return e.code in {401, 403, 405, 429}, f"HTTP {e.code}"
     except Exception as e:
         return False, f"DEAD ({e})"
 
@@ -134,6 +137,7 @@ def main():
     # 2. Check MyBuildingPermit jurisdictions
     print("\nChecking MyBuildingPermit jurisdictions...")
     mbp_cities = fetch_mbp_jurisdictions()
+    verification_failed = not lni_cities or not mbp_cities
     current_mbp = set(data["cities_on_mbp"])
     if mbp_cities:
         added = mbp_cities - current_mbp
@@ -164,6 +168,10 @@ def main():
 
     # Summary
     print()
+    if apply_changes and verification_failed:
+        print("Verification incomplete; routing data was not updated.")
+        return
+
     if changes:
         print(f"CHANGES DETECTED: {json.dumps(changes, indent=2)}")
         if apply_changes:

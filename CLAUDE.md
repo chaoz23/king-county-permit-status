@@ -38,3 +38,14 @@ Content-Type: application/json;charset=UTF-8
 **Test cases confirmed working:**
 - `B25000947` → 2 permits (building + electrical sub-permit) at 1817 Morris Ave S
 - `1817 Morris Ave S, Renton, WA 98055` → 24 permits via parcel 7222000353
+
+## Bellevue Open Data Integration (live)
+
+Bellevue's former EnerGov hostname is retired. Bellevue permits are searched
+through the city's official ArcGIS Open Data layer, which is refreshed daily
+and covers 1998 to the present.
+
+**Test cases confirmed working:**
+- `919 109th Ave NE, Bellevue, WA` → Bellevue address history
+- `6600750000` → Bellevue parcel history
+- `23-127651-LP` → exact Bellevue permit

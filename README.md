@@ -6,11 +6,12 @@ Look up building permit history and status for any King County, WA property. Sea
 python3 lookup.py "27927 E Main St"           # by address
 python3 lookup.py "7222000353"                  # by parcel number
 python3 lookup.py "B25000947"                   # by permit number
+python3 lookup.py "23-127651-LP"                # Bellevue permit number
 python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
 python3 lookup.py --schema                      # print tool definition
 ```
 
-Parcel-number searches query King County and every supported live city
+Parcel-number searches query every supported MyBuildingPermit and live city
 portal because a bare parcel number does not identify its city jurisdiction.
 
 ## What you get
@@ -53,6 +54,7 @@ Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisd
 | Source | Cities / scope |
 |---|---|
 | [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) | Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie |
+| Bellevue Open Data (live ArcGIS API) | Daily Bellevue permit snapshot (1998+) for address, parcel, and permit-number searches |
 | Renton EnerGov (live API) | All Renton permit types including electrical |
 | WA State L&I | Electrical permits for cities not handling their own (2019+) |
 
@@ -121,7 +123,7 @@ print(json.dumps(open_permits, indent=2))
 ## Requirements
 
 - Python 3.10+ (stdlib only, no dependencies)
-- Network access to `permitsearch.mybuildingpermit.com`, `permitting.rentonwa.gov`, `secure.lni.wa.gov`
+- Network access to `permitsearch.mybuildingpermit.com`, `services1.arcgis.com`, `permitting.rentonwa.gov`, `secure.lni.wa.gov`
 
 ## Development
 

@@ -46,6 +46,7 @@ portal because a bare parcel number does not identify its city jurisdiction.
 | `permits` | Array sorted newest `applied_date` first |
 | `searched` | Which jurisdictions were searched |
 | `separate_portal` | If the city has an unsupported portal: city name + URL |
+| `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
 
 Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`.
 
@@ -56,7 +57,7 @@ Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisd
 | [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) | Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie |
 | Bellevue Open Data (live ArcGIS API) | Daily Bellevue permit snapshot (1998+) for address, parcel, and permit-number searches |
 | Renton EnerGov (live API) | All Renton permit types including electrical |
-| WA State L&I | Electrical permits for cities not handling their own (2019+) |
+| WA State L&I | Electrical permits for cities not handling their own (2020+) |
 
 **Cities with separate portals** (flagged with URL, not searched): Seattle, Kent, Redmond, Shoreline, Tukwila, SeaTac, Woodinville, Covington, Maple Valley, Enumclaw.
 

@@ -105,6 +105,13 @@
         "type": "object",
         "description": "Present when the city has its own portal not yet searchable. Includes city, portal URL, note."
       },
+      "errors": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Source errors when a search is incomplete; may accompany permits from sources that succeeded."
+      },
       "message": {
         "type": "string"
       }

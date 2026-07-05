@@ -23,7 +23,8 @@ import sys
 import urllib.request
 import urllib.parse
 import http.cookiejar
-from datetime import datetime
+from calendar import monthrange
+from datetime import datetime, timedelta
 
 SEARCH_URL = "https://permitsearch.mybuildingpermit.com/SearchPermits/GetSearchResults"
 BASE_URL = "https://permitsearch.mybuildingpermit.com/"
@@ -172,53 +173,66 @@ CITIES_OWN_ELECTRICAL = {
 }
 
 LNI_URL = "https://secure.lni.wa.gov/epispub/frmPermitSearchMain.aspx"
+LNI_EARLIEST_DATE = datetime(2020, 1, 1)
 
 
-def search_lni(address: str, city: str = "") -> list[dict]:
-    """Search WA State L&I for electrical/manufactured-home permits.
+def _months_before(value: datetime, months: int) -> datetime:
+    """Shift a datetime backward by whole calendar months."""
+    total_month = value.year * 12 + value.month - 1 - months
+    year, month_zero = divmod(total_month, 12)
+    month = month_zero + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
 
-    L&I limits date range to 13 months, so we search the most recent
-    windows. Records before 2019 are not available online.
-    """
+
+def lni_date_windows(now: datetime | None = None) -> list[tuple[str, str]]:
+    """Build contiguous 13-month windows covering all available L&I data."""
+    cursor = now or datetime.now()
+    windows = []
+    while cursor >= LNI_EARLIEST_DATE:
+        start = max(_months_before(cursor, 13), LNI_EARLIEST_DATE)
+        windows.append((start.strftime("%m/%d/%Y"), cursor.strftime("%m/%d/%Y")))
+        cursor = start - timedelta(days=1)
+    return windows
+
+
+def _open_lni_session():
+    """Open an L&I session and return its ASP.NET form state."""
     cj = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-
-    try:
-        resp = opener.open(urllib.request.Request(
-            LNI_URL, headers={"User-Agent": "Mozilla/5.0"}
-        ), timeout=15)
-        html = resp.read().decode("utf-8", errors="replace")
-    except Exception:
-        return []
+    resp = opener.open(urllib.request.Request(
+        LNI_URL, headers={"User-Agent": "Mozilla/5.0"}
+    ), timeout=15)
+    html = resp.read().decode("utf-8", errors="replace")
 
     vs = re.search(r'id="__VIEWSTATE"[^>]*value="([^"]+)"', html)
     vsg = re.search(r'id="__VIEWSTATEGENERATOR"[^>]*value="([^"]+)"', html)
     ev = re.search(r'id="__EVENTVALIDATION"[^>]*value="([^"]+)"', html)
     if not vs or not ev:
-        return []
+        raise ValueError("permit search form is missing required state tokens")
+    return opener, vs.group(1), vsg.group(1) if vsg else "", ev.group(1)
+
+
+def search_lni(address: str, city: str = "") -> tuple[list[dict], list[str]]:
+    """Search WA State L&I for electrical/manufactured-home permits.
+
+    L&I defaults to a 13-month date range and no longer provides records
+    purchased before 2020. Returns both permits and any source errors so a
+    partial search cannot be mistaken for a complete empty result.
+    """
+    try:
+        opener, cur_vs, cur_vsg, cur_ev = _open_lni_session()
+    except Exception as e:
+        return [], [f"Could not connect to permit search: {e}"]
 
     house, street = parse_address(address)
     # L&I docs: "enter only the house number in the site address field"
     site_addr = house if house else address.split(",")[0].strip()
 
-    # Search last 3 years in 13-month windows
-    from datetime import timedelta
-    now = datetime.now()
-    windows = []
-    cursor = now
-    for _ in range(3):
-        end = cursor
-        start = cursor - timedelta(days=395)
-        if start < datetime(2019, 1, 1):
-            start = datetime(2019, 1, 1)
-        windows.append((start.strftime("%m/%d/%Y"), end.strftime("%m/%d/%Y")))
-        cursor = start - timedelta(days=1)
-        if cursor < datetime(2019, 1, 1):
-            break
+    windows = lni_date_windows()
 
     all_results = []
-    cur_vs, cur_ev = vs.group(1), ev.group(1)
-    cur_vsg = vsg.group(1) if vsg else ""
+    errors = []
 
     for beg, end in windows:
         form = {
@@ -249,18 +263,40 @@ def search_lni(address: str, city: str = "") -> list[dict]:
             resp2 = opener.open(req, timeout=30)
             result = resp2.read().decode("utf-8", errors="replace")
         except Exception:
-            continue
+            # The public ASP.NET session currently expires after several
+            # searches. Retry this window once with fresh form state.
+            try:
+                opener, cur_vs, cur_vsg, cur_ev = _open_lni_session()
+                form.update({
+                    "__VIEWSTATE": cur_vs,
+                    "__VIEWSTATEGENERATOR": cur_vsg,
+                    "__EVENTVALIDATION": cur_ev,
+                })
+                req = urllib.request.Request(
+                    LNI_URL,
+                    data=urllib.parse.urlencode(form).encode("utf-8"),
+                    headers={
+                        "User-Agent": "Mozilla/5.0",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                )
+                result = opener.open(req, timeout=30).read().decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception as retry_error:
+                errors.append(f"{beg}–{end}: {retry_error}")
+                continue
 
         # Update viewstate for next request
         vs2 = re.search(r'id="__VIEWSTATE"[^>]*value="([^"]+)"', result)
         ev2 = re.search(r'id="__EVENTVALIDATION"[^>]*value="([^"]+)"', result)
+        state_missing = not vs2 or not ev2
+        if state_missing:
+            errors.append(f"{beg}–{end}: response missing required state tokens")
         if vs2:
             cur_vs = vs2.group(1)
         if ev2:
             cur_ev = ev2.group(1)
-
-        if len(result) < 15000:
-            continue
 
         rows = re.findall(r"<tr[^>]*>(.*?)</tr>", result, re.DOTALL)
         for row in rows:
@@ -282,7 +318,10 @@ def search_lni(address: str, city: str = "") -> list[dict]:
                     "site_city": cells[6],
                 })
 
-    return all_results
+        if state_missing:
+            break
+
+    return all_results, errors
 
 
 def parse_lni_date(raw: str) -> str | None:
@@ -632,8 +671,9 @@ def lookup(raw_input: str) -> dict:
             searched_jurisdictions.append(f"WA State L&I — skipped ({city.title()} handles its own electrical)")
         else:
             house, street = parse_address(value)
-            lni_permits = search_lni(f"{house} {street}", city or "")
-            searched_jurisdictions.append("WA State L&I (electrical, 2019+)")
+            lni_permits, lni_errors = search_lni(f"{house} {street}", city or "")
+            errors.extend(f"WA State L&I: {error}" for error in lni_errors)
+            searched_jurisdictions.append("WA State L&I (electrical, 2020+)")
 
     # If the city does its own electrical and we can't search it, flag it
     city_permits_searched = city in JURIS_BY_NAME or city in ENERGOV_PORTALS
@@ -682,6 +722,8 @@ def lookup(raw_input: str) -> dict:
             "input": raw_input,
             "message": f"Found {len(unique)} permit(s) across {', '.join(set(searched_jurisdictions))}.",
         }
+        if errors:
+            result["message"] += " Some source searches were incomplete."
     else:
         suggestions = ["Try searching by street name without the city"]
         if errors:
@@ -706,7 +748,7 @@ def lookup(raw_input: str) -> dict:
         result["separate_portal"] = separate_portal_note
         result["message"] += f" Note: {separate_portal_note['note']}"
 
-    if errors and not unique:
+    if errors:
         result["errors"] = errors
 
     return result
@@ -782,6 +824,11 @@ TOOL_SCHEMA = {
             "separate_portal": {
                 "type": "object",
                 "description": "Present when the city has its own portal not yet searchable. Includes city, portal URL, note.",
+            },
+            "errors": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Source errors when a search is incomplete; may accompany permits from sources that succeeded.",
             },
             "message": {"type": "string"},
         },

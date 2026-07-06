@@ -1,12 +1,12 @@
 {
   "name": "king_county_permit_status",
-  "description": "Look up building permit history and status for any King County, WA property. Accepts a street address, 10-digit parcel number, or permit number. Searches MyBuildingPermit.com (14 cities + King County), Bellevue Open Data, Renton EnerGov (live API), and WA State L&I (electrical permits). Returns all matching permits sorted newest-first. Use for due diligence, permit tracking, or verifying contractor pull history.",
+  "description": "Look up building permit history and status for any King County, WA property. Accepts a street address, 10-digit parcel number, or permit number. Searches MyBuildingPermit.com (14 cities + King County), Bellevue and Seattle Open Data, Renton EnerGov (live API), and WA State L&I (electrical permits). Returns all matching permits sorted newest-first. Use for due diligence, permit tracking, or verifying contractor pull history.",
   "input_schema": {
     "type": "object",
     "properties": {
       "query": {
         "type": "string",
-        "description": "One of: street address ('1817 Morris Ave S, Renton WA 98055'), 10-digit parcel number (plain '7222000353' or formatted '722200-0353'), or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). Input type is auto-detected."
+        "description": "One of: street address ('1817 Morris Ave S, Renton WA 98055'), 10-digit parcel number (plain '7222000353' or formatted '722200-0353'), or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP', '6145915-CN'). Input type is auto-detected."
       }
     },
     "required": [
@@ -103,7 +103,7 @@
       },
       "separate_portal": {
         "type": "object",
-        "description": "Present when the city has its own portal not yet searchable. Includes city, portal URL, note."
+        "description": "Present when manual follow-up at a city portal is needed, including when a live city search is incomplete. Includes city, portal URL, note."
       },
       "errors": {
         "type": "array",

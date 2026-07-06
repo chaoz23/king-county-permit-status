@@ -39,6 +39,28 @@ class CityCatalogContractTests(unittest.TestCase):
         lookup_cities = set(lookup.JURIS_BY_NAME) | set(lookup.SEPARATE_PORTALS)
         self.assertEqual(KING_COUNTY_CITIES - lookup_cities, set())
 
+    def test_kent_uses_current_official_status_page(self):
+        expected = (
+            "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/"
+            "check-your-permit-status"
+        )
+        self.assertEqual(lookup.SEPARATE_PORTALS["kent"], expected)
+        self.assertEqual(self.data["city_portals"]["kent"], expected)
+
+    def test_portal_check_priority_tracks_highest_population_cities(self):
+        self.assertEqual(self.data["portal_check_priority"], [
+            "seattle",
+            "bellevue",
+            "kent",
+            "renton",
+            "federal way",
+            "kirkland",
+            "redmond",
+            "auburn",
+            "sammamish",
+            "shoreline",
+        ])
+
 
 def _city_contract(city):
     def test(self):

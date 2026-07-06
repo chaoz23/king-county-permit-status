@@ -3,8 +3,21 @@
   "sources": {
     "cities_own_electrical": "https://www.lni.wa.gov/licensing-permits/electrical/electrical-permits-fees-and-inspections/city-electrical-permits-inspections",
     "mybuildingpermit_jurisdictions": "https://permitsearch.mybuildingpermit.com/",
-    "portal_urls": "manually verified"
+    "portal_urls": "manually verified",
+    "portal_check_priority": "https://ofm.wa.gov/wp-content/uploads/sites/default/files/public/dataresearch/pop/april1/ofm_april1_population_final.pdf"
   },
+  "portal_check_priority": [
+    "seattle",
+    "bellevue",
+    "kent",
+    "renton",
+    "federal way",
+    "kirkland",
+    "redmond",
+    "auburn",
+    "sammamish",
+    "shoreline"
+  ],
   "king_county_cities": [
     "algona",
     "auburn",
@@ -105,7 +118,7 @@
     "yarrow point": "https://yarrowpointwa.gov/",
     "seattle": "https://cosaccela.seattle.gov/portal/",
     "renton": "https://permitting.rentonwa.gov/",
-    "kent": "https://epermit.kentwa.gov/",
+    "kent": "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/check-your-permit-status",
     "redmond": "https://permits.redmond.gov/",
     "shoreline": "https://permits.shorelinewa.gov/",
     "tukwila": "https://www.tukwilawa.gov/departments/community-development/",

@@ -23,6 +23,7 @@ DATA_PATH = os.path.join(SCRIPT_DIR, "routing_data.json")
 
 LNI_URL = "https://www.lni.wa.gov/licensing-permits/electrical/electrical-permits-fees-and-inspections/city-electrical-permits-inspections"
 MBP_URL = "https://permitsearch.mybuildingpermit.com/"
+PORTAL_CHECK_LIMIT = 10
 
 
 def load_data() -> dict:
@@ -105,6 +106,21 @@ def check_url(url: str) -> tuple[bool, str]:
         return False, f"DEAD ({e})"
 
 
+def prioritized_portals(data: dict) -> list[tuple[str, str]]:
+    """Return portal checks ordered by population priority, then data order."""
+    portals = data["city_portals"]
+    priority = data.get("portal_check_priority", [])
+    ordered = []
+    seen = set()
+    for city in list(priority) + list(portals):
+        if city in portals and city not in seen:
+            ordered.append((city, portals[city]))
+            seen.add(city)
+        if len(ordered) == PORTAL_CHECK_LIMIT:
+            break
+    return ordered
+
+
 def main():
     apply_changes = "--apply" in sys.argv
 
@@ -153,10 +169,9 @@ def main():
     else:
         print("  Could not verify (fetch failed)")
 
-    # 3. Spot-check portal URLs (sample 5 to avoid hammering)
+    # 3. Spot-check the highest-population portal URLs first.
     print("\nSpot-checking portal URLs...")
-    portals = data["city_portals"]
-    sample = list(portals.items())[:5]
+    sample = prioritized_portals(data)
     dead = []
     for city, url in sample:
         ok, note = check_url(url)
@@ -165,6 +180,7 @@ def main():
             dead.append(city)
     if dead:
         changes["dead_urls"] = dead
+        verification_failed = True
 
     # Summary
     print()

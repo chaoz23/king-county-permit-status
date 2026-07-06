@@ -117,6 +117,22 @@ class PortalCheckTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(note, "HTTP 403")
 
+    def test_population_priority_is_checked_before_json_insertion_order(self):
+        data = {
+            "portal_check_priority": ["seattle", "kent"],
+            "city_portals": {
+                "algona": "https://algona.example",
+                "kent": "https://kent.example",
+                "seattle": "https://seattle.example",
+            },
+        }
+
+        self.assertEqual(refresh.prioritized_portals(data), [
+            ("seattle", "https://seattle.example"),
+            ("kent", "https://kent.example"),
+            ("algona", "https://algona.example"),
+        ])
+
 
 class RefreshApplySafetyTests(unittest.TestCase):
     def test_apply_does_not_stamp_failed_source_checks_as_verified(self):
@@ -139,6 +155,43 @@ class RefreshApplySafetyTests(unittest.TestCase):
         ):
             refresh.main()
 
+        file_open.assert_not_called()
+        self.assertIn("not updated", output.getvalue().lower())
+
+    def test_apply_does_not_stamp_dead_portal_as_verified(self):
+        data = {
+            "last_verified": "2026-06-23",
+            "cities_own_electrical": ["bellevue"],
+            "cities_on_mbp": ["bellevue"],
+            "portal_check_priority": ["kent"],
+            "city_portals": {"kent": "https://dead.example"},
+        }
+        output = io.StringIO()
+        file_open = mock_open()
+        with (
+            patch.object(sys, "argv", ["refresh.py", "--apply"]),
+            patch.object(refresh, "load_data", return_value=data),
+            patch.object(
+                refresh,
+                "fetch_lni_cities",
+                return_value={"bellevue"},
+            ),
+            patch.object(
+                refresh,
+                "fetch_mbp_jurisdictions",
+                return_value={"bellevue"},
+            ),
+            patch.object(
+                refresh,
+                "check_url",
+                return_value=(False, "DEAD (offline)"),
+            ) as check_url,
+            patch("builtins.open", file_open),
+            redirect_stdout(output),
+        ):
+            refresh.main()
+
+        check_url.assert_called_once_with("https://dead.example")
         file_open.assert_not_called()
         self.assertIn("not updated", output.getvalue().lower())
 

@@ -1,10 +1,16 @@
 import json
+import subprocess
+import sys
 import unittest
 import urllib.parse
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import call, patch
 
 import lookup
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def energov_permit(number="B25000947"):
@@ -44,6 +50,21 @@ class ParcelRoutingTests(unittest.TestCase):
             "King County", "Bellevue", "Renton (EnerGov)",
             "Bellevue Open Data",
         ])
+
+    def test_formatted_parcel_reaches_sources_as_digits(self):
+        opener = object()
+        with (
+            patch.dict(lookup.JURISDICTIONS, {"20": "King County"}, clear=True),
+            patch.object(lookup, "get_session", return_value=(opener, "token")),
+            patch.object(lookup, "search_permits", return_value=[]) as search_permits,
+            patch.object(lookup, "search_energov", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+        ):
+            lookup.lookup("722200-0353")
+
+        search_permits.assert_called_once_with(
+            opener, "token", "20", parcel="7222000353"
+        )
 
     def test_parcel_queries_every_energov_portal(self):
         portals = {
@@ -210,6 +231,22 @@ class BellevueSourceTests(unittest.TestCase):
             "portal": "https://example.test/permit",
         }])
 
+    def test_bellevue_api_error_is_returned(self):
+        class Response:
+            def read(self):
+                return json.dumps({
+                    "error": {"message": "service unavailable"},
+                }).encode()
+
+        with patch.object(
+            lookup.urllib.request,
+            "urlopen",
+            return_value=Response(),
+        ):
+            result = lookup.search_bellevue("parcel", "6600750000")
+
+        self.assertEqual(result, "Error: service unavailable")
+
 
 class LniSourceTests(unittest.TestCase):
     def test_date_windows_cover_every_day_back_to_2020(self):
@@ -356,6 +393,141 @@ class LniSourceTests(unittest.TestCase):
             "WA State L&I: old window failed",
         ])
         self.assertIn("Some source searches were incomplete", result["message"])
+
+
+class InputContractTests(unittest.TestCase):
+    def test_blank_query_is_rejected_without_network(self):
+        with patch.object(lookup, "get_session") as get_session:
+            result = lookup.lookup("   ")
+
+        get_session.assert_not_called()
+        self.assertEqual(result["action"], "reject")
+        self.assertEqual(result["permits"], [])
+
+    def test_formatted_parcel_is_normalized(self):
+        self.assertEqual(
+            lookup.detect_input_type("722200-0353"),
+            ("parcel", "7222000353"),
+        )
+
+    def test_city_name_does_not_match_inside_street_word(self):
+        self.assertIsNone(lookup.detect_city("123 Kenton Road"))
+
+    def test_city_name_matches_as_address_component(self):
+        self.assertEqual(
+            lookup.detect_city("123 Main St, Maple Valley, WA"),
+            "maple valley",
+        )
+
+
+class LookupCliTests(unittest.TestCase):
+    def run_cli(self, *args):
+        return subprocess.run(
+            [sys.executable, str(REPO_ROOT / "lookup.py"), *args],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_missing_query_exits_two(self):
+        completed = self.run_cli()
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("Usage:", completed.stdout)
+
+    def test_blank_pipe_query_returns_reject_json(self):
+        completed = self.run_cli("--pipe", "")
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(json.loads(completed.stdout)["action"], "reject")
+
+    def test_schema_output_matches_tool_json(self):
+        completed = self.run_cli("--schema")
+
+        self.assertEqual(completed.returncode, 0)
+        with open(REPO_ROOT / "tool.json") as f:
+            expected = json.load(f)
+        self.assertEqual(json.loads(completed.stdout), expected)
+
+
+class SourceUtilityTests(unittest.TestCase):
+    def test_dotnet_date_parser_handles_valid_and_invalid_values(self):
+        self.assertEqual(lookup.parse_date("/Date(1782975600000)/"), "2026-07-02")
+        self.assertIsNone(lookup.parse_date("not a date"))
+        self.assertIsNone(lookup.parse_date(None))
+
+    def test_lni_date_parser_handles_valid_and_invalid_values(self):
+        self.assertEqual(lookup.parse_lni_date("7/2/2026"), "2026-07-02")
+        self.assertIsNone(lookup.parse_lni_date("&nbsp;"))
+        self.assertIsNone(lookup.parse_lni_date("bogus"))
+
+    def test_parse_address_splits_house_and_street(self):
+        self.assertEqual(
+            lookup.parse_address("1817 Morris Ave S, Renton, WA"),
+            ("1817", "Morris Ave S"),
+        )
+        self.assertEqual(lookup.parse_address("Main Street"), ("", "Main Street"))
+
+    def test_geocoder_skips_low_scores_and_normalizes_pin(self):
+        payload = {
+            "candidates": [
+                {"score": 70, "attributes": {"PIN": "1111111111"}},
+                {"score": 95, "attributes": {"PIN": "722200-0353"}},
+            ],
+        }
+
+        class Response:
+            def read(self):
+                return json.dumps(payload).encode()
+
+        with patch.object(
+            lookup.urllib.request,
+            "urlopen",
+            return_value=Response(),
+        ):
+            parcel = lookup._geocode_parcel("1817 Morris Ave S, Renton")
+
+        self.assertEqual(parcel, "7222000353")
+
+    def test_mbp_error_payload_is_preserved(self):
+        class Response:
+            def read(self):
+                return json.dumps({
+                    "success": False,
+                    "ErrorMessage": "Too many results",
+                }).encode()
+
+        class Opener:
+            def open(self, request, timeout):
+                return Response()
+
+        result = lookup.search_permits(Opener(), "token", "20")
+
+        self.assertEqual(result, "Too many results")
+
+    def test_mbp_transport_failure_is_returned(self):
+        class Opener:
+            def open(self, request, timeout):
+                raise OSError("offline")
+
+        result = lookup.search_permits(Opener(), "token", "20")
+
+        self.assertEqual(result, "Error: offline")
+
+    def test_energov_transport_failure_returns_empty_list(self):
+        class Opener:
+            def open(self, request, timeout):
+                raise OSError("offline")
+
+        with patch.object(
+            lookup.urllib.request,
+            "build_opener",
+            return_value=Opener(),
+        ):
+            result = lookup.search_energov("renton", "B25000947", exact=True)
+
+        self.assertEqual(result, [])
 
 
 if __name__ == "__main__":

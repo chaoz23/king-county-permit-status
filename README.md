@@ -59,7 +59,12 @@ Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisd
 | Renton EnerGov (live API) | All Renton permit types including electrical |
 | WA State L&I | Electrical permits for cities not handling their own (2020+) |
 
-**Cities with separate portals** (flagged with URL, not searched): Seattle, Kent, Redmond, Shoreline, Tukwila, SeaTac, Woodinville, Covington, Maple Valley, Enumclaw.
+All 39 incorporated King County cities are recognized. Cities outside the searchable sources are flagged with their municipal portal URL rather than being treated as unincorporated King County.
+
+For comma-separated addresses, the locality component takes precedence over
+city names that also appear in streets (for example, `Kent Kangley Rd,
+Covington`). If a Renton address cannot be resolved to a parcel for its live
+EnerGov search, the result retains Renton's portal as an actionable fallback.
 
 ## Exit codes
 

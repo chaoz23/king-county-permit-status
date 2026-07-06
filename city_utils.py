@@ -1,5 +1,7 @@
 """Shared city-name detection for permit lookup and routing."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Iterable
 

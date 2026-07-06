@@ -69,6 +69,8 @@ Covington`). If a Renton address cannot be resolved to a parcel for its live
 EnerGov search, the result retains Renton's portal as an actionable fallback.
 Seattle address and exact permit-number searches query all four official SDCI
 Open Data datasets; parcel-only Seattle lookup is not yet supported.
+Kent's official permit-status page currently requires users to sign in to the
+city portal, so Kent results include that page as a manual fallback.
 
 ## Exit codes
 

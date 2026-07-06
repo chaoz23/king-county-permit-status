@@ -192,6 +192,10 @@ class PopulationPriorityScenarioTests(unittest.TestCase):
 
         search_lni.assert_called_once()
         self.assertEqual(result["separate_portal"]["city"], "Kent")
+        self.assertEqual(
+            result["separate_portal"]["portal"],
+            "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/check-your-permit-status",
+        )
         self.assertIn("WA State L&I (electrical, 2020+)", result["searched"])
 
     def test_renton_address_resolves_to_energov_and_skips_lni(self):

@@ -55,7 +55,7 @@ SEPARATE_PORTALS = {
     "pacific": "https://www.pacificwa.gov/",
     "seattle": "https://cosaccela.seattle.gov/portal/",
     "renton": "https://permitting.rentonwa.gov/",
-    "kent": "https://epermit.kentwa.gov/",
+    "kent": "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/check-your-permit-status",
     "redmond": "https://permits.redmond.gov/",
     "shoreline": "https://permits.shorelinewa.gov/",
     "tukwila": "https://www.tukwilawa.gov/departments/community-development/",

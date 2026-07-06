@@ -10,6 +10,8 @@ Usage:
   python3 route.py --pipe "123 Main St" "rewiring kitchen and adding outlets"
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

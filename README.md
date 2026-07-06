@@ -7,6 +7,7 @@ python3 lookup.py "27927 E Main St"           # by address
 python3 lookup.py "7222000353"                  # by parcel number
 python3 lookup.py "B25000947"                   # by permit number
 python3 lookup.py "23-127651-LP"                # Bellevue permit number
+python3 lookup.py "6145915-CN"                  # Seattle SDCI permit number
 python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
 python3 lookup.py --schema                      # print tool definition
 ```
@@ -56,6 +57,7 @@ Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisd
 |---|---|
 | [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) | Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie |
 | Bellevue Open Data (live ArcGIS API) | Daily Bellevue permit snapshot (1998+) for address, parcel, and permit-number searches |
+| Seattle Open Data (live Socrata APIs) | Building, electrical, trade, and land-use permits for Seattle address and permit-number searches |
 | Renton EnerGov (live API) | All Renton permit types including electrical |
 | WA State L&I | Electrical permits for cities not handling their own (2020+) |
 
@@ -65,6 +67,8 @@ For comma-separated addresses, the locality component takes precedence over
 city names that also appear in streets (for example, `Kent Kangley Rd,
 Covington`). If a Renton address cannot be resolved to a parcel for its live
 EnerGov search, the result retains Renton's portal as an actionable fallback.
+Seattle address and exact permit-number searches query all four official SDCI
+Open Data datasets; parcel-only Seattle lookup is not yet supported.
 
 ## Exit codes
 

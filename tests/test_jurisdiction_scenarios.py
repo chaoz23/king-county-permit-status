@@ -76,21 +76,39 @@ class PopulationPriorityScenarioTests(unittest.TestCase):
         )
         self.assertEqual(result["portals"][0]["portal"], lookup.SEPARATE_PORTALS["seattle"])
 
-    def test_seattle_lookup_skips_lni_and_returns_actionable_fallback(self):
+    def test_seattle_lookup_skips_lni_after_complete_city_search(self):
         with (
             patch.object(lookup, "get_session", return_value=(object(), "token")),
             patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_seattle", return_value=([], [])),
             patch.object(lookup, "search_lni") as search_lni,
         ):
             result = lookup.lookup("900 5th Ave, Seattle, WA")
 
         search_lni.assert_not_called()
-        self.assertEqual(result["separate_portal"]["city"], "Seattle")
-        self.assertTrue(result["separate_portal"]["electrical"])
+        self.assertNotIn("separate_portal", result)
+        self.assertIn("Seattle Open Data", result["searched"])
         self.assertIn(
             "WA State L&I — skipped (Seattle handles its own electrical)",
             result["searched"],
         )
+
+    def test_seattle_partial_failure_returns_actionable_fallback(self):
+        with (
+            patch.object(lookup, "get_session", return_value=(object(), "token")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(
+                lookup,
+                "search_seattle",
+                return_value=([], ["Electrical: offline"]),
+            ),
+        ):
+            result = lookup.lookup("900 5th Ave, Seattle, WA")
+
+        self.assertEqual(result["action"], "refine")
+        self.assertEqual(result["separate_portal"]["city"], "Seattle")
+        self.assertTrue(result["separate_portal"]["electrical"])
+        self.assertIn("Seattle Open Data — Electrical: offline", result["errors"])
 
     def test_unincorporated_work_routes_to_county_and_lni(self):
         result = route.route(

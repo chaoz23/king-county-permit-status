@@ -40,7 +40,8 @@ JURISDICTIONS = {
 }
 JURIS_BY_NAME = {v.lower(): k for k, v in JURISDICTIONS.items()}
 
-# Cities NOT on MyBuildingPermit — have their own permit portals
+# Cities with permit portals outside MyBuildingPermit. Most are fallback-only;
+# Seattle and Renton also have live source integrations below.
 SEPARATE_PORTALS = {
     "algona": "https://www.algonawa.gov/",
     "beaux arts village": "https://beauxarts-wa.gov/",
@@ -90,6 +91,9 @@ def detect_input_type(raw: str) -> tuple[str, str]:
         return "parcel", parcel
     # Bellevue-style: 23-127651-LP or 23 127651 LP
     if re.fullmatch(r"\d{2}[-\s]\d{6}[-\s][A-Z]{1,3}", s, re.IGNORECASE):
+        return "permit", s
+    # Seattle SDCI-style: 6145915-CN, 6001001-EL, 3001271-LU
+    if re.fullmatch(r"\d{7}-[A-Z]{2}", s, re.IGNORECASE):
         return "permit", s
     # MBP-style: ADDC21-0275; EnerGov-style: B25000947, E26000458
     if re.match(r"[A-Z]{1,4}\d{2}[-\d]\d{3,6}$", s, re.IGNORECASE):
@@ -555,6 +559,114 @@ def search_bellevue(input_type: str, value: str) -> list[dict] | str:
     return permits
 
 
+# Seattle publishes four complementary SDCI datasets through its official
+# Socrata Open Data API. Their useful permit fields share one common schema.
+SEATTLE_OPEN_DATA = "https://data.seattle.gov"
+SEATTLE_PERMIT_DATASETS = {
+    "Building": "76t5-zqzr",
+    "Electrical": "c4tj-daue",
+    "Trade": "c87v-5hwh",
+    "Land Use": "ht3q-kdvx",
+}
+SEATTLE_PAGE_SIZE = 1000
+
+
+def _socrata_string(value: str) -> str:
+    """Escape a value for a Socrata SoQL string literal."""
+    return value.replace("'", "''")
+
+
+def _seattle_permit(raw: dict, source: str) -> dict:
+    """Normalize one Seattle Open Data record to the shared permit schema."""
+    link = raw.get("link")
+    if isinstance(link, dict):
+        link = link.get("url")
+    address = " ".join(filter(None, [
+        raw.get("originaladdress1"),
+        raw.get("originalcity"),
+        raw.get("originalstate"),
+        raw.get("originalzip"),
+    ]))
+    return {
+        "permit_number": raw.get("permitnum") or "",
+        "type": (
+            raw.get("permittypedesc")
+            or raw.get("permittype")
+            or raw.get("permittypemapped")
+            or raw.get("permitclassmapped")
+            or source
+        ),
+        "status": raw.get("statuscurrent") or "",
+        "description": raw.get("description") or "",
+        "address": address,
+        "jurisdiction": "Seattle SDCI",
+        "applied_date": _iso_date(raw.get("applieddate")),
+        "issued_date": _iso_date(raw.get("issueddate")),
+        "finaled_date": _iso_date(raw.get("completeddate")),
+        "expires_date": _iso_date(raw.get("expiresdate")),
+        "portal": link or SEATTLE_OPEN_DATA,
+    }
+
+
+def search_seattle(input_type: str, value: str) -> tuple[list[dict], list[str]]:
+    """Search Seattle's official building, electrical, trade, and land-use data.
+
+    Address searches use the source's normalized site-address prefix. Exact
+    permit searches query all four datasets because the suffix identifies the
+    permit class but not a source contract we control. Each dataset is isolated
+    so partial results remain useful when another source is unavailable.
+    """
+    if input_type == "permit":
+        permit_number = value.strip().upper()
+        where = f"upper(permitnum) = '{_socrata_string(permit_number)}'"
+    elif input_type == "address":
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        address = f"{house} {street}".strip().upper()
+        where = f"upper(originaladdress1) like '{_socrata_string(address)}%'"
+    else:
+        return [], []
+
+    permits = []
+    errors = []
+    for source, dataset_id in SEATTLE_PERMIT_DATASETS.items():
+        offset = 0
+        while True:
+            params = urllib.parse.urlencode({
+                "$where": where,
+                "$order": "applieddate DESC, permitnum",
+                "$limit": SEATTLE_PAGE_SIZE,
+                "$offset": offset,
+            })
+            url = f"{SEATTLE_OPEN_DATA}/resource/{dataset_id}.json?{params}"
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                payload = json.loads(
+                    urllib.request.urlopen(req, timeout=30).read().decode()
+                )
+                if not isinstance(payload, list):
+                    message = (
+                        payload.get("message", "unexpected response")
+                        if isinstance(payload, dict)
+                        else "unexpected response"
+                    )
+                    raise ValueError(message)
+            except Exception as error:
+                errors.append(f"{source}: {error}")
+                break
+
+            permits.extend(_seattle_permit(raw, source) for raw in payload)
+            if len(payload) < SEATTLE_PAGE_SIZE:
+                break
+            offset += len(payload)
+
+    return permits, errors
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -674,7 +786,7 @@ def lookup(raw_input: str) -> dict:
                         f"{city.title()} search — check the city portal directly."
                     ),
                 }
-        elif city and city in SEPARATE_PORTALS:
+        elif city and city in SEPARATE_PORTALS and city != "seattle":
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -691,6 +803,23 @@ def lookup(raw_input: str) -> dict:
         else:
             errors.append(f"Bellevue Open Data: {bellevue}")
 
+    # Seattle's official Open Data covers address and exact permit searches.
+    if input_type == "permit" or (input_type == "address" and city == "seattle"):
+        seattle_permits, seattle_errors = search_seattle(input_type, value)
+        all_permits.extend(seattle_permits)
+        searched_jurisdictions.append("Seattle Open Data")
+        errors.extend(f"Seattle Open Data — {error}" for error in seattle_errors)
+        if city == "seattle" and seattle_errors:
+            separate_portal_note = {
+                "city": "Seattle",
+                "portal": SEPARATE_PORTALS["seattle"],
+                "note": (
+                    "Some Seattle Open Data searches were incomplete — "
+                    "check the Seattle Services Portal directly."
+                ),
+                "electrical": True,
+            }
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -705,7 +834,11 @@ def lookup(raw_input: str) -> dict:
             searched_jurisdictions.append("WA State L&I (electrical, 2020+)")
 
     # If the city does its own electrical and we can't search it, flag it
-    city_permits_searched = city in JURIS_BY_NAME or city in ENERGOV_PORTALS
+    city_permits_searched = (
+        city in JURIS_BY_NAME
+        or city in ENERGOV_PORTALS
+        or city == "seattle"
+    )
     if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())
         electrical_note = {
@@ -791,8 +924,9 @@ TOOL_SCHEMA = {
     "description": (
         "Look up building permit history and status for any King County, WA property. "
         "Accepts a street address, 10-digit parcel number, or permit number. "
-        "Searches MyBuildingPermit.com (14 cities + King County), Bellevue Open Data, "
-        "Renton EnerGov (live API), and WA State L&I (electrical permits). "
+        "Searches MyBuildingPermit.com (14 cities + King County), Bellevue and "
+        "Seattle Open Data, Renton EnerGov (live API), and WA State L&I "
+        "(electrical permits). "
         "Returns all matching permits sorted newest-first. "
         "Use for due diligence, permit tracking, or verifying contractor pull history."
     ),
@@ -805,7 +939,8 @@ TOOL_SCHEMA = {
                     "One of: street address ('1817 Morris Ave S, Renton WA 98055'), "
                     "10-digit parcel number (plain '7222000353' or formatted "
                     "'722200-0353'), "
-                    "or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP'). "
+                    "or permit number ('B25000947', 'ADDC21-0275', "
+                    "'23-127651-LP', '6145915-CN'). "
                     "Input type is auto-detected."
                 ),
             }
@@ -853,7 +988,7 @@ TOOL_SCHEMA = {
             },
             "separate_portal": {
                 "type": "object",
-                "description": "Present when the city has its own portal not yet searchable. Includes city, portal URL, note.",
+                "description": "Present when manual follow-up at a city portal is needed, including when a live city search is incomplete. Includes city, portal URL, note.",
             },
             "errors": {
                 "type": "array",

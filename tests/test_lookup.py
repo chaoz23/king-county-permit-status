@@ -159,10 +159,15 @@ class CityRoutingTests(unittest.TestCase):
             result["searched"],
         )
 
-    def test_unsupported_electrical_city_keeps_portal_warning(self):
+    def test_failed_seattle_search_keeps_portal_warning(self):
         with (
             patch.object(lookup, "get_session", return_value=(object(), "token")),
             patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(
+                lookup,
+                "search_seattle",
+                return_value=([], ["Building: offline"]),
+            ),
         ):
             result = lookup.lookup("600 4th Ave, Seattle, WA")
 
@@ -246,6 +251,237 @@ class BellevueSourceTests(unittest.TestCase):
             result = lookup.search_bellevue("parcel", "6600750000")
 
         self.assertEqual(result, "Error: service unavailable")
+
+
+class SeattleSourceTests(unittest.TestCase):
+    def test_seattle_permit_number_is_detected(self):
+        self.assertEqual(
+            lookup.detect_input_type("6145915-CN"),
+            ("permit", "6145915-CN"),
+        )
+
+    def test_address_query_is_normalized_to_shared_schema(self):
+        payload = [{
+            "permitnum": "6145915-CN",
+            "permittypedesc": "Addition/Alteration",
+            "statuscurrent": "Closed",
+            "description": "Restaurant tenant improvement",
+            "originaladdress1": "600 4TH AVE",
+            "originalcity": "SEATTLE",
+            "originalstate": "WA",
+            "originalzip": "98104",
+            "applieddate": "2024-01-02T00:00:00.000",
+            "issueddate": "2024-02-03",
+            "completeddate": "2025-03-04",
+            "expiresdate": "2026-04-05",
+            "link": {"url": "https://example.test/6145915-CN"},
+        }]
+        seen = {}
+
+        class Response:
+            def read(self):
+                return json.dumps(payload).encode()
+
+        def urlopen(request, timeout):
+            seen["query"] = urllib.parse.parse_qs(
+                urllib.parse.urlparse(request.full_url).query
+            )
+            self.assertEqual(timeout, 30)
+            return Response()
+
+        with (
+            patch.dict(
+                lookup.SEATTLE_PERMIT_DATASETS,
+                {"Building": "building-id"},
+                clear=True,
+            ),
+            patch.object(lookup.urllib.request, "urlopen", side_effect=urlopen),
+        ):
+            permits, errors = lookup.search_seattle(
+                "address",
+                "600 4th Ave, Seattle, WA",
+            )
+
+        self.assertEqual(
+            seen["query"]["$where"],
+            ["upper(originaladdress1) like '600 4TH AVE%'"],
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(permits, [{
+            "permit_number": "6145915-CN",
+            "type": "Addition/Alteration",
+            "status": "Closed",
+            "description": "Restaurant tenant improvement",
+            "address": "600 4TH AVE SEATTLE WA 98104",
+            "jurisdiction": "Seattle SDCI",
+            "applied_date": "2024-01-02",
+            "issued_date": "2024-02-03",
+            "finaled_date": "2025-03-04",
+            "expires_date": "2026-04-05",
+            "portal": "https://example.test/6145915-CN",
+        }])
+
+    def test_exact_permit_query_searches_each_dataset(self):
+        seen = []
+
+        class Response:
+            def read(self):
+                return b"[]"
+
+        def urlopen(request, timeout):
+            seen.append(request.full_url)
+            return Response()
+
+        datasets = {"Building": "building-id", "Trade": "trade-id"}
+        with (
+            patch.dict(lookup.SEATTLE_PERMIT_DATASETS, datasets, clear=True),
+            patch.object(lookup.urllib.request, "urlopen", side_effect=urlopen),
+        ):
+            permits, errors = lookup.search_seattle("permit", "6145915-cn")
+
+        self.assertEqual(permits, [])
+        self.assertEqual(errors, [])
+        self.assertEqual(len(seen), 2)
+        for url in seen:
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            self.assertEqual(
+                query["$where"],
+                ["upper(permitnum) = '6145915-CN'"],
+            )
+
+    def test_incomplete_address_is_rejected_without_network(self):
+        with patch.object(lookup.urllib.request, "urlopen") as urlopen:
+            permits, errors = lookup.search_seattle("address", "Seattle, WA")
+
+        urlopen.assert_not_called()
+        self.assertEqual(permits, [])
+        self.assertEqual(
+            errors,
+            ["Address requires a house number and street name"],
+        )
+
+    def test_electrical_record_uses_string_link_and_mapped_type(self):
+        result = lookup._seattle_permit({
+            "permitnum": "6001001-EL",
+            "permittypemapped": "Electrical",
+            "link": "https://example.test/6001001-EL",
+        }, "Electrical")
+
+        self.assertEqual(result["type"], "Electrical")
+        self.assertEqual(result["portal"], "https://example.test/6001001-EL")
+
+    def test_pagination_fetches_every_page(self):
+        rows = [
+            {"permitnum": "1-CN"},
+            {"permitnum": "2-CN"},
+            {"permitnum": "3-CN"},
+        ]
+        offsets = []
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        def urlopen(request, timeout):
+            query = urllib.parse.parse_qs(
+                urllib.parse.urlparse(request.full_url).query
+            )
+            offset = int(query["$offset"][0])
+            offsets.append(offset)
+            return Response(rows[offset:offset + 2])
+
+        with (
+            patch.dict(
+                lookup.SEATTLE_PERMIT_DATASETS,
+                {"Building": "building-id"},
+                clear=True,
+            ),
+            patch.object(lookup, "SEATTLE_PAGE_SIZE", 2),
+            patch.object(lookup.urllib.request, "urlopen", side_effect=urlopen),
+        ):
+            permits, errors = lookup.search_seattle("permit", "6145915-CN")
+
+        self.assertEqual(errors, [])
+        self.assertEqual(offsets, [0, 2])
+        self.assertEqual(
+            [permit["permit_number"] for permit in permits],
+            ["1-CN", "2-CN", "3-CN"],
+        )
+
+    def test_one_dataset_failure_preserves_other_results(self):
+        class Response:
+            def read(self):
+                return json.dumps([{"permitnum": "6145915-CN"}]).encode()
+
+        def urlopen(request, timeout):
+            if "electrical-id" in request.full_url:
+                raise OSError("offline")
+            return Response()
+
+        with (
+            patch.dict(
+                lookup.SEATTLE_PERMIT_DATASETS,
+                {"Building": "building-id", "Electrical": "electrical-id"},
+                clear=True,
+            ),
+            patch.object(lookup.urllib.request, "urlopen", side_effect=urlopen),
+        ):
+            permits, errors = lookup.search_seattle("permit", "6145915-CN")
+
+        self.assertEqual(len(permits), 1)
+        self.assertEqual(errors, ["Electrical: offline"])
+
+    def test_api_error_payload_is_reported(self):
+        class Response:
+            def read(self):
+                return json.dumps({"message": "query timed out"}).encode()
+
+        with (
+            patch.dict(
+                lookup.SEATTLE_PERMIT_DATASETS,
+                {"Building": "building-id"},
+                clear=True,
+            ),
+            patch.object(lookup.urllib.request, "urlopen", return_value=Response()),
+        ):
+            permits, errors = lookup.search_seattle("permit", "6145915-CN")
+
+        self.assertEqual(permits, [])
+        self.assertEqual(errors, ["Building: query timed out"])
+
+    def test_lookup_deduplicates_seattle_results_and_surfaces_partial_error(self):
+        permit = {
+            "permit_number": "6145915-CN",
+            "type": "Building",
+            "status": "Closed",
+            "description": "Tenant improvement",
+            "address": "600 4TH AVE SEATTLE WA 98104",
+            "jurisdiction": "Seattle SDCI",
+            "applied_date": "2024-01-02",
+            "issued_date": None,
+            "finaled_date": None,
+            "expires_date": None,
+            "portal": "https://example.test/permit",
+        }
+        with (
+            patch.object(lookup, "get_session", return_value=(object(), "token")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_energov", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(
+                lookup,
+                "search_seattle",
+                return_value=([permit, permit], ["Trade: offline"]),
+            ),
+        ):
+            result = lookup.lookup("6145915-CN")
+
+        self.assertEqual(result["action"], "found")
+        self.assertEqual(result["permit_count"], 1)
+        self.assertIn("Seattle Open Data — Trade: offline", result["errors"])
 
 
 class LniSourceTests(unittest.TestCase):

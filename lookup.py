@@ -1012,8 +1012,22 @@ TOOL_SCHEMA = {
 }
 
 
+def print_usage():
+    print("Usage: lookup.py [--pipe] [--schema] <address|parcel|permit_number>")
+    print('  lookup.py "27927 E Main St"              # by address')
+    print('  lookup.py "7222000353"                    # by parcel number')
+    print('  lookup.py "ADDC21-0275"                   # by permit number')
+    print('  lookup.py --pipe "27927 E Main St"        # agent mode')
+    print('  lookup.py --schema                        # print tool definition')
+
+
 def main():
     args = sys.argv[1:]
+
+    if "-h" in args or "--help" in args:
+        print_usage()
+        sys.exit(0)
+
     pipe_mode = "--pipe" in args
     schema_mode = "--schema" in args
     args = [a for a in args if a not in ("--pipe", "--schema")]
@@ -1023,12 +1037,7 @@ def main():
         sys.exit(0)
 
     if not args:
-        print("Usage: lookup.py [--pipe] [--schema] <address|parcel|permit_number>")
-        print('  lookup.py "27927 E Main St"              # by address')
-        print('  lookup.py "7222000353"                    # by parcel number')
-        print('  lookup.py "ADDC21-0275"                   # by permit number')
-        print('  lookup.py --pipe "27927 E Main St"        # agent mode')
-        print('  lookup.py --schema                        # print tool definition')
+        print_usage()
         sys.exit(2)
 
     query = " ".join(args)

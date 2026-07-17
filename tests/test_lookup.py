@@ -672,6 +672,19 @@ class LookupCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("Usage:", completed.stdout)
 
+    def test_help_flag_prints_usage_and_exits_zero(self):
+        for flag in ("-h", "--help"):
+            completed = self.run_cli(flag)
+            self.assertEqual(completed.returncode, 0, flag)
+            self.assertIn("Usage:", completed.stdout)
+
+    def test_help_flag_is_not_treated_as_query(self):
+        completed = self.run_cli("--pipe", "--help")
+
+        self.assertEqual(completed.returncode, 0)
+        self.assertIn("Usage:", completed.stdout)
+        self.assertNotIn('"action"', completed.stdout)
+
     def test_blank_pipe_query_returns_reject_json(self):
         completed = self.run_cli("--pipe", "")
 

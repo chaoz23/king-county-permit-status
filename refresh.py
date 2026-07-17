@@ -11,6 +11,8 @@ Usage:
   python3 refresh.py --apply  # check + update routing_data.json
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -21,9 +23,22 @@ from datetime import datetime
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(SCRIPT_DIR, "routing_data.json")
 
+# lookup.py holds the JurisId map + MBP client used for backend proof-of-life.
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+try:
+    import lookup
+except Exception:  # pragma: no cover - lookup should always import
+    lookup = None
+
 LNI_URL = "https://www.lni.wa.gov/licensing-permits/electrical/electrical-permits-fees-and-inspections/city-electrical-permits-inspections"
 MBP_URL = "https://permitsearch.mybuildingpermit.com/"
 PORTAL_CHECK_LIMIT = 10
+
+# Common street tokens for probing whether an MBP jurisdiction is still served.
+# A populated jurisdiction returns records or a "too many results" cap on at
+# least one of these; a removed one returns empty lists for all.
+MBP_PROBE_STREETS = ("1st Ave", "Main St", "2nd Ave", "Park", "Ave")
 
 
 def load_data() -> dict:
@@ -89,6 +104,41 @@ def fetch_mbp_jurisdictions() -> set[str]:
     return cities
 
 
+def mbp_backend_alive(city: str) -> bool | None:
+    """Probe the MBP backend by JurisId for proof of life.
+
+    MyBuildingPermit's public dropdown is a UI surface only: it has dropped
+    jurisdictions (e.g. Newcastle, Mill Creek) that the backend still serves by
+    JurisId. Returns True if the backend returns records for the city, False if
+    it returns no data across every probe street, or None if it cannot be
+    checked (no JurisId, import/session failure).
+    """
+    if lookup is None:
+        return None
+    jid = lookup.JURIS_BY_NAME.get(city.lower())
+    if not jid:
+        return None
+    try:
+        opener, token = lookup.get_session()
+    except Exception:
+        return None
+    saw_empty = False
+    for street in MBP_PROBE_STREETS:
+        try:
+            result = lookup.search_permits(opener, token, jid, street=street)
+        except Exception:
+            continue
+        if isinstance(result, str):
+            if "too many" in result.lower():
+                return True          # cap hit — the jurisdiction is populated
+            continue                 # e.g. "valid jurisdiction" — not proof
+        if isinstance(result, list):
+            if result:
+                return True          # real records came back
+            saw_empty = True
+    return False if saw_empty else None
+
+
 def check_url(url: str) -> tuple[bool, str]:
     """Check if a URL responds. Follows redirects. Returns (ok, status_note)."""
     try:
@@ -150,21 +200,40 @@ def main():
     else:
         print("  Could not verify (fetch failed)")
 
-    # 2. Check MyBuildingPermit jurisdictions
+    # 2. Check MyBuildingPermit jurisdictions.
+    # The public dropdown is UI-only. MBP has dropped jurisdictions from it that
+    # the backend still serves by JurisId, so a dropdown absence is NOT proof a
+    # city left MBP. Confirm every drop against the backend, and never auto-drop
+    # a city: a silent coverage loss is far worse than a stale entry, which
+    # surfaces loudly as lookup errors and gets caught on the next run.
     print("\nChecking MyBuildingPermit jurisdictions...")
     mbp_cities = fetch_mbp_jurisdictions()
     verification_failed = not lni_cities or not mbp_cities
     current_mbp = set(data["cities_on_mbp"])
+    mbp_added = set()
     if mbp_cities:
-        added = mbp_cities - current_mbp
-        removed = current_mbp - mbp_cities
-        if added:
-            print(f"  NEW cities on MBP: {sorted(added)}")
-            changes["mbp_added"] = sorted(added)
-        if removed:
-            print(f"  Cities LEFT MBP: {sorted(removed)}")
-            changes["mbp_removed"] = sorted(removed)
-        if not added and not removed:
+        mbp_added = mbp_cities - current_mbp
+        dropped = current_mbp - mbp_cities
+        if mbp_added:
+            print(f"  NEW cities on MBP: {sorted(mbp_added)}")
+            changes["mbp_added"] = sorted(mbp_added)
+        retained, review = [], []
+        for city in sorted(dropped):
+            alive = mbp_backend_alive(city)
+            if alive is True:
+                retained.append(city)
+                print(f"  Dropped from dropdown but backend still serves — "
+                      f"RETAINED: {city}")
+            else:
+                review.append(city)
+                verdict = "no records found" if alive is False else "unverified"
+                print(f"  Dropped from dropdown, {verdict} — "
+                      f"NEEDS MANUAL REVIEW (kept): {city}")
+        if retained:
+            changes["mbp_retained_ui_drift"] = retained
+        if review:
+            changes["mbp_needs_review"] = review
+        if not mbp_added and not dropped:
             print(f"  No changes ({len(mbp_cities)} cities)")
     else:
         print("  Could not verify (fetch failed)")
@@ -194,7 +263,10 @@ def main():
             if lni_cities:
                 data["cities_own_electrical"] = sorted(lni_cities)
             if mbp_cities:
-                data["cities_on_mbp"] = sorted(mbp_cities)
+                # Add newly-listed cities; retain every current entry. Drops are
+                # never applied automatically — they are surfaced above for
+                # manual review so a UI-only change can't silently cut coverage.
+                data["cities_on_mbp"] = sorted(current_mbp | mbp_added)
             data["last_verified"] = datetime.now().strftime("%Y-%m-%d")
             with open(DATA_PATH, "w") as f:
                 json.dump(data, f, indent=2)

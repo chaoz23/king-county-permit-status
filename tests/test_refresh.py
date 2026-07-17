@@ -227,3 +227,41 @@ class RefreshApplySafetyTests(unittest.TestCase):
         self.assertEqual(data["cities_own_electrical"], ["bellevue", "renton"])
         self.assertNotEqual(data["last_verified"], "2026-06-23")
         self.assertIn("Updated", output.getvalue())
+
+
+class MbpDropdownDriftTests(unittest.TestCase):
+    """The public MBP dropdown is UI-only; a drop must not cut coverage."""
+
+    def _run_apply(self, alive_verdict):
+        data = {
+            "last_verified": "2026-06-23",
+            "cities_own_electrical": ["bellevue"],
+            "cities_on_mbp": ["bellevue", "newcastle"],
+            "city_portals": {"bellevue": "https://example.test",
+                             "newcastle": "https://example.test"},
+        }
+        output = io.StringIO()
+        with (
+            patch.object(sys, "argv", ["refresh.py", "--apply"]),
+            patch.object(refresh, "load_data", return_value=data),
+            patch.object(refresh, "fetch_lni_cities", return_value={"bellevue"}),
+            # Dropdown dropped Newcastle.
+            patch.object(refresh, "fetch_mbp_jurisdictions",
+                         return_value={"bellevue"}),
+            patch.object(refresh, "mbp_backend_alive", return_value=alive_verdict),
+            patch.object(refresh, "check_url", return_value=(True, "OK")),
+            patch("builtins.open", mock_open()),
+            redirect_stdout(output),
+        ):
+            refresh.main()
+        return data, output.getvalue()
+
+    def test_backend_alive_city_is_retained_not_dropped(self):
+        data, out = self._run_apply(alive_verdict=True)
+        self.assertIn("newcastle", data["cities_on_mbp"])  # never silently cut
+        self.assertIn("RETAINED", out)
+
+    def test_unconfirmed_drop_is_kept_and_flagged_for_review(self):
+        data, out = self._run_apply(alive_verdict=False)
+        self.assertIn("newcastle", data["cities_on_mbp"])  # still not dropped
+        self.assertIn("NEEDS MANUAL REVIEW", out)

@@ -21,7 +21,8 @@ END = "<!-- END SCORECARD -->"
 # Cities with a dedicated live integration (not MyBuildingPermit).
 DEDICATED = {"renton": "Renton (EnerGov)",
              "seattle": "Seattle (SDCI Open Data)",
-             "bellevue": "Bellevue (Open Data)"}
+             "bellevue": "Bellevue (Open Data)",
+             "shoreline": "Shoreline (eTRAKiT)"}
 
 # Display names where title-casing the routing_data key is wrong.
 NAME_OVERRIDES = {"seatac": "SeaTac"}
@@ -65,18 +66,18 @@ def classify(city, mbp, own_elec):
         source = "—"
 
     # electrical — verified against MBP feeds 2026-07-15 (see B7 in the epic):
-    #   MyBuildingPermit carries a city's own electrical permits, so any MBP
-    #   city has full electrical history regardless of who runs the program.
-    #   The real gap is a city that self-runs electrical (L&I is skipped) AND
-    #   is not on MBP — its electrical lives in no feed we search.
-    if dedicated or (on_mbp and owns_elec):
-        electrical = "yes"          # city feed carries full electrical history
-    elif on_mbp:
+    #   A city's own electrical permits live in its feed (MBP or a dedicated
+    #   integration) only when the city self-runs electrical. Cities that don't
+    #   self-run it have their electrical issued by WA L&I, so it comes from the
+    #   L&I layer regardless of building coverage (e.g. Shoreline: building via
+    #   eTRAKiT, electrical via L&I). A city that self-runs electrical but has no
+    #   feed we search is a genuine gap.
+    if not owns_elec:
         electrical = "lni"          # state (L&I) issues this city's electrical, 2020+
-    elif owns_elec:
-        electrical = "gap"          # self-run electrical, not on MBP, L&I skipped
+    elif dedicated or on_mbp:
+        electrical = "yes"          # city runs electrical and we have its feed
     else:
-        electrical = "lni"          # L&I supplements (2020+)
+        electrical = "gap"          # self-run electrical, no feed we search
 
     building = "yes" if live_building else "no"
     trade = "yes" if live_building else "no"       # mechanical / plumbing

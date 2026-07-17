@@ -39,6 +39,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[]) as search_permits,
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("6600750005")
 
@@ -48,7 +49,7 @@ class ParcelRoutingTests(unittest.TestCase):
         ])
         self.assertEqual(result["searched"], [
             "King County", "Bellevue", "Renton (EnerGov)",
-            "Bellevue Open Data",
+            "Bellevue Open Data", "Shoreline (eTRAKiT)",
         ])
 
     def test_formatted_parcel_reaches_sources_as_digits(self):
@@ -59,6 +60,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[]) as search_permits,
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             lookup.lookup("722200-0353")
 
@@ -77,6 +79,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[]),
             patch.object(lookup, "search_energov", return_value=[energov_permit()]) as search_energov,
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -95,6 +98,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits") as search_permits,
             patch.object(lookup, "search_energov", return_value=[energov_permit()]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -108,6 +112,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits") as search_permits,
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -115,7 +120,7 @@ class ParcelRoutingTests(unittest.TestCase):
         self.assertEqual(result["action"], "refine")
         self.assertIn("Could not connect to MyBuildingPermit", result["message"])
         self.assertEqual(result["searched"], [
-            "Renton (EnerGov)", "Bellevue Open Data",
+            "Renton (EnerGov)", "Bellevue Open Data", "Shoreline (eTRAKiT)",
         ])
 
     def test_duplicate_permits_from_sources_are_collapsed(self):
@@ -136,6 +141,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[mbp_permit]),
             patch.object(lookup, "search_energov", return_value=[energov_permit()]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -149,6 +155,7 @@ class CityRoutingTests(unittest.TestCase):
             patch.object(lookup, "get_session", return_value=(object(), "token")),
             patch.object(lookup, "search_permits", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
         ):
             result = lookup.lookup("919 109th Ave NE, Bellevue, WA")
 
@@ -471,6 +478,7 @@ class SeattleSourceTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[]),
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(
                 lookup,
                 "search_seattle",
@@ -777,6 +785,129 @@ class SourceUtilityTests(unittest.TestCase):
             result = lookup.search_energov("renton", "B25000947", exact=True)
 
         self.assertEqual(result, [])
+
+
+class ShorelineSearchTests(unittest.TestCase):
+    SEARCH_PAGE = (
+        '<input id="__VIEWSTATE" value="vs">'
+        '<input id="__VIEWSTATEGENERATOR" value="vsg">'
+    )
+    CSV = (
+        '﻿"PERMIT NUMBER","APPLIED DATE","ISSUED DATE","Permit Type",'
+        '"PARCEL","ADDRESS","OWNER NAME","APPLICANT NAME","CONTRACTOR NAME",'
+        '"RECORDID"\r\n'
+        '"101014","01/26/2001","02/02/2001","FIRE SYSTEM","1826049268",'
+        '"15332 AURORA AVE N","SAFEWAY INC","SAFEWAY","","CONV:1"\r\n'
+        '"","","","","","","","","",""\r\n'  # blank row is skipped
+    )
+
+    def _opener(self, page, post_body, ctype="text/csv; charset=utf-8"):
+        responses = iter([(page, ""), (post_body, ctype)])
+
+        class Headers:
+            def __init__(self, ct):
+                self.ct = ct
+
+            def get(self, key, default=""):
+                return self.ct if key == "Content-Type" else default
+
+        class Response:
+            def __init__(self, text, ct):
+                self.text = text
+                self.headers = Headers(ct)
+
+            def read(self):
+                return self.text.encode("utf-8")
+
+        class Opener:
+            def open(self, request, timeout):
+                text, ct = next(responses)
+                return Response(text, ct)
+
+        return Opener()
+
+    def test_address_search_parses_csv_export(self):
+        opener = self._opener(self.SEARCH_PAGE, self.CSV)
+        with patch.object(
+            lookup.urllib.request, "build_opener", return_value=opener
+        ):
+            permits, errors = lookup.search_shoreline(
+                "address", "15332 Aurora Ave N, Shoreline WA")
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(permits), 1)  # header + 1 data + blank(skipped)
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "101014")
+        self.assertEqual(p["type"], "FIRE SYSTEM")
+        self.assertEqual(p["applied_date"], "2001-01-26")
+        self.assertEqual(p["issued_date"], "2001-02-02")
+        self.assertEqual(p["address"], "15332 AURORA AVE N")
+        self.assertEqual(p["jurisdiction"], "Shoreline")
+        self.assertEqual(p["status"], "")
+
+    def test_no_match_returns_empty_without_error(self):
+        # eTRAKiT re-renders the HTML grid (not CSV) when there are no matches.
+        opener = self._opener(
+            self.SEARCH_PAGE, "<html>no records</html>", ctype="text/html")
+        with patch.object(
+            lookup.urllib.request, "build_opener", return_value=opener
+        ):
+            permits, errors = lookup.search_shoreline("permit", "NOPE")
+
+        self.assertEqual((permits, errors), ([], []))
+
+    def test_connection_failure_is_reported(self):
+        class Opener:
+            def open(self, request, timeout):
+                raise OSError("offline")
+
+        with patch.object(
+            lookup.urllib.request, "build_opener", return_value=Opener()
+        ):
+            permits, errors = lookup.search_shoreline("parcel", "1826049268")
+
+        self.assertEqual(permits, [])
+        self.assertEqual(errors, ["offline"])
+
+    def test_address_without_house_number_is_rejected_without_network(self):
+        with patch.object(lookup.urllib.request, "build_opener") as build_opener:
+            permits, errors = lookup.search_shoreline("address", "Aurora Ave")
+        build_opener.assert_not_called()
+        self.assertEqual(permits, [])
+        self.assertIn("house number", errors[0])
+
+    def test_search_axis_and_date_mapping(self):
+        self.assertEqual(
+            lookup.SHORELINE_SEARCH_BY,
+            {"permit": "Permit_Main.PERMIT_NO",
+             "parcel": "Permit_Main.SITE_APN",
+             "address": "Permit_Main.SITE_ADDR"})
+        self.assertEqual(lookup._shoreline_date("03/09/2001"), "2001-03-09")
+        self.assertIsNone(lookup._shoreline_date(""))
+        self.assertIsNone(lookup._shoreline_date("not a date"))
+
+    def test_lookup_routes_shoreline_address_and_suppresses_fallback_note(self):
+        permit = {
+            "permit_number": "B1", "type": "BUILDING", "status": "",
+            "description": "", "address": "1 MAIN ST",
+            "jurisdiction": "Shoreline", "applied_date": "2020-01-01",
+            "issued_date": None, "finaled_date": None, "expires_date": None,
+            "portal": "https://permits.shorelinewa.gov/eTRAKiT/",
+        }
+        with (
+            patch.object(lookup, "get_session", side_effect=OSError("offline")),
+            patch.object(lookup, "search_shoreline",
+                         return_value=([permit], [])) as search,
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ):
+            result = lookup.lookup("15332 Aurora Ave N, Shoreline WA")
+
+        search.assert_called_once()
+        self.assertEqual(search.call_args[0][0], "address")
+        self.assertNotIn("separate_portal", result)  # Shoreline now covered
+        self.assertIn("Shoreline", str(result["searched"]))
+        self.assertTrue(
+            any(p["jurisdiction"] == "Shoreline" for p in result["permits"]))
 
 
 if __name__ == "__main__":

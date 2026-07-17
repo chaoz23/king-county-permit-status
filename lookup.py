@@ -19,6 +19,8 @@ Exit codes:
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
 import sys
@@ -669,6 +671,129 @@ def search_seattle(input_type: str, value: str) -> tuple[list[dict], list[str]]:
     return permits, errors
 
 
+# Shoreline runs CentralSquare eTRAKiT (ASP.NET WebForms + Telerik RadGrid).
+# The public permit search is unauthenticated. Its Export-to-Excel action
+# returns every matching row as CSV in a single request, so we avoid paging the
+# grid. Status/description are only on the per-permit detail page (a postback,
+# not a GET), so those fields come back empty from the search/export.
+SHORELINE_ETRAKIT = "https://permits.shorelinewa.gov/eTRAKiT"
+SHORELINE_SEARCH_URL = SHORELINE_ETRAKIT + "/Search/permit.aspx"
+SHORELINE_SEARCH_BY = {
+    "permit": "Permit_Main.PERMIT_NO",
+    "parcel": "Permit_Main.SITE_APN",
+    "address": "Permit_Main.SITE_ADDR",
+}
+
+
+def _shoreline_date(raw: str | None) -> str | None:
+    """Convert eTRAKiT's MM/DD/YYYY date to YYYY-MM-DD."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _parse_shoreline_csv(body: str) -> list[dict]:
+    """Normalize the eTRAKiT CSV export into the shared permit schema."""
+    rows = list(csv.reader(io.StringIO(body)))
+    if not rows:
+        return []
+    header = [h.strip().upper() for h in rows[0]]
+    index = {name: i for i, name in enumerate(header)}
+
+    def col(row: list[str], name: str) -> str:
+        i = index.get(name)
+        return row[i].strip() if i is not None and i < len(row) else ""
+
+    permits = []
+    for row in rows[1:]:
+        if not any(cell.strip() for cell in row):
+            continue
+        permits.append({
+            "permit_number": col(row, "PERMIT NUMBER"),
+            "type": col(row, "PERMIT TYPE"),
+            "status": "",          # not exposed by eTRAKiT search/export
+            "description": "",      # detail page only
+            "address": col(row, "ADDRESS"),
+            "jurisdiction": "Shoreline",
+            "applied_date": _shoreline_date(col(row, "APPLIED DATE")),
+            "issued_date": _shoreline_date(col(row, "ISSUED DATE")),
+            "finaled_date": None,
+            "expires_date": None,
+            "portal": SHORELINE_ETRAKIT + "/",
+        })
+    return permits
+
+
+def search_shoreline(input_type: str, value: str) -> tuple[list[dict], list[str]]:
+    """Search Shoreline's public eTRAKiT portal.
+
+    eTRAKiT is ASP.NET WebForms: GET the search page for a fresh __VIEWSTATE,
+    then POST the query with the grid's Export-to-Excel action, which returns
+    all matching rows as CSV in one request (no pagination). Returns the shared
+    (permits, errors) shape.
+    """
+    search_by = SHORELINE_SEARCH_BY.get(input_type)
+    if not search_by:
+        return [], []
+    if input_type == "parcel":
+        term, oper = re.sub(r"\D", "", value), "EQUALS"
+    elif input_type == "permit":
+        term, oper = value.strip().upper(), "EQUALS"
+    else:
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        term, oper = f"{house} {street}".upper(), "CONTAINS"
+    if not term:
+        return [], []
+
+    try:
+        cj = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(cj))
+        page = opener.open(urllib.request.Request(
+            SHORELINE_SEARCH_URL, headers={"User-Agent": "Mozilla/5.0"}),
+            timeout=30).read().decode("utf-8", "replace")
+
+        def hidden(name: str) -> str:
+            match = re.search(
+                r'id="%s"[^>]*value="([^"]*)"' % re.escape(name), page)
+            return match.group(1) if match else ""
+
+        form = {
+            "__EVENTTARGET": "", "__EVENTARGUMENT": "",
+            "__VIEWSTATE": hidden("__VIEWSTATE"),
+            "__VIEWSTATEGENERATOR": hidden("__VIEWSTATEGENERATOR"),
+            "ctl00$cplMain$ddSearchBy": search_by,
+            "ctl00$cplMain$ddSearchOper": oper,
+            "ctl00$cplMain$txtSearchString": term,
+            "ctl00$cplMain$hfActivityMode": "",
+            "ctl00$cplMain$btnExportToExcel": "Export to Excel",
+        }
+        resp = opener.open(urllib.request.Request(
+            SHORELINE_SEARCH_URL,
+            data=urllib.parse.urlencode(form).encode(),
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": SHORELINE_SEARCH_URL,
+            }), timeout=45)
+        ctype = resp.headers.get("Content-Type", "")
+        body = resp.read().decode("utf-8-sig", "replace")
+    except Exception as error:
+        return [], [str(error)]
+
+    # A search with no matches re-renders the grid page (HTML) rather than
+    # returning a CSV file; that is simply zero results, not an error.
+    if "csv" not in ctype.lower():
+        return [], []
+    return _parse_shoreline_csv(body), []
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -788,7 +913,7 @@ def lookup(raw_input: str) -> dict:
                         f"{city.title()} search — check the city portal directly."
                     ),
                 }
-        elif city and city in SEPARATE_PORTALS and city != "seattle":
+        elif city and city in SEPARATE_PORTALS and city not in ("seattle", "shoreline"):
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -821,6 +946,16 @@ def lookup(raw_input: str) -> dict:
                 ),
                 "electrical": True,
             }
+
+    # Shoreline eTRAKiT (CentralSquare) — building, mechanical/plumbing, and
+    # land-use permits. Queried for permit/parcel searches (no city context) and
+    # for Shoreline addresses. Electrical is issued by WA L&I (Shoreline does not
+    # run its own program), so it is covered by the L&I layer below.
+    if input_type in ("permit", "parcel") or city == "shoreline":
+        shoreline_permits, shoreline_errors = search_shoreline(input_type, value)
+        all_permits.extend(shoreline_permits)
+        searched_jurisdictions.append("Shoreline (eTRAKiT)")
+        errors.extend(f"Shoreline eTRAKiT: {error}" for error in shoreline_errors)
 
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical

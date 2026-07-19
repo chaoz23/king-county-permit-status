@@ -27,6 +27,7 @@ import sys
 import urllib.request
 import urllib.parse
 import http.cookiejar
+from html import unescape as html_unescape
 from calendar import monthrange
 from datetime import datetime, timedelta
 
@@ -105,6 +106,10 @@ def detect_input_type(raw: str) -> tuple[str, str]:
     # EnerGov Civic Access-style: FDM-2600855, ELEC-2025-08133, FIRE-2022-02703
     # (a letters-dash-digits token; real addresses always contain a space).
     if re.fullmatch(r"[A-Z]{1,6}-\d{3,8}(?:-\d{3,8})?", s, re.IGNORECASE):
+        return "permit", s
+    # Accela-style: ROW26100, BLD26076, TRE26036 (letters directly followed by
+    # 4-8 digits, no space — cannot be a street address).
+    if re.fullmatch(r"[A-Z]{2,5}\d{4,8}", s, re.IGNORECASE):
         return "permit", s
     return "address", s
 
@@ -920,6 +925,119 @@ def search_energov_civicaccess(city: str, input_type: str,
     return permits, errors
 
 
+# Accela Citizen Access portals (aca-prod.accela.com). The public "global
+# search" is a plain GET returning an HTML grid — no session or VIEWSTATE.
+# Reusable across agencies via config. Cities that contract permitting to King
+# County resolve to the "kingco" agency (their permits live in KC's system).
+ACCELA_HOST = "https://aca-prod.accela.com"
+ACCELA_PORTALS = {            # city -> Accela agency code
+    "woodinville": "WOODINVILLE",
+    "black diamond": "kingco",
+}
+ACCELA_AGENCY_LABEL = {"WOODINVILLE": "Woodinville", "kingco": "King County"}
+
+
+def _accela_date(raw: str | None) -> str | None:
+    """Accela's MM/DD/YYYY grid date -> YYYY-MM-DD."""
+    raw = (raw or "").strip()
+    try:
+        return datetime.strptime(raw, "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _accela_rows(html: str) -> list[list[str]]:
+    """Extract permit-grid data rows (cell lists) from a results page.
+
+    Column layout varies per agency, but every data row starts with the record
+    Date and the last cell is the Status, so callers map by anchors, not fixed
+    positions.
+    """
+    idx = html.find("gdvPermitList")
+    seg = html[idx:idx + 60000] if idx >= 0 else html
+    rows = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", seg, re.S):
+        if not re.search(r"\d{2}/\d{2}/\d{4}", tr):
+            continue
+        cells = [
+            re.sub(r"\s+", " ", html_unescape(re.sub(r"<[^>]+>", " ", c))).strip()
+            for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
+        ]
+        if len(cells) >= 3 and re.match(r"\d{2}/\d{2}/\d{4}", cells[0]):
+            rows.append(cells)
+    return rows
+
+
+def _accela_permit(cells: list[str], jurisdiction: str, portal_url: str) -> dict:
+    """Normalize one Accela grid row to the shared schema (anchor-based)."""
+    number = cells[1] if len(cells) > 1 else ""
+    ctype = cells[2] if len(cells) > 2 else ""
+    status = cells[-1].strip() if len(cells) > 3 else ""
+    address = ""
+    for c in cells[3:]:
+        if re.search(r"\b[A-Z]{2}\s+\d{5}", c) or ", WA" in c.upper():
+            address = re.sub(r"\s+", " ", c).strip()
+            break
+    description = cells[3].strip() if (
+        len(cells) > 4 and cells[3] not in (address, status)) else ""
+    return {
+        "permit_number": number,
+        "type": ctype,
+        "status": status,
+        "description": description,
+        "address": address,
+        "jurisdiction": jurisdiction,
+        "applied_date": _accela_date(cells[0]),
+        "issued_date": None,
+        "finaled_date": None,
+        "expires_date": None,
+        "portal": portal_url,
+    }
+
+
+def search_accela(agency: str, input_type: str, value: str,
+                  jurisdiction: str) -> tuple[list[dict], list[str]]:
+    """Search an Accela Citizen Access agency via its public global search.
+
+    A single GET to GlobalSearchResults.aspx?QueryText=<term> returns an HTML
+    grid — no session/VIEWSTATE. Returns the shared (permits, errors) shape.
+    """
+    if input_type == "address":
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        query = f"{house} {street}"
+    elif input_type == "parcel":
+        query = re.sub(r"\D", "", value)
+    else:  # permit
+        query = value.strip()
+    if not query:
+        return [], []
+
+    url = (f"{ACCELA_HOST}/{agency}/Cap/GlobalSearchResults.aspx"
+           f"?isNewQuery=yes&QueryText={urllib.parse.quote(query)}")
+    portal_url = f"{ACCELA_HOST}/{agency}/Cap/CapHome.aspx?module=DevelopmentServices"
+    try:
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "text/html,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        body = opener.open(req, timeout=30).read().decode("utf-8", "replace")
+    except Exception as error:
+        return [], [str(error)]
+
+    rows = _accela_rows(body)
+    permits = [_accela_permit(c, jurisdiction, portal_url) for c in rows]
+    errors = []
+    total = re.search(r"Showing\s+1-\d+\s+of\s+(\d+)", body)
+    if rows and total and int(total.group(1)) > len(rows):
+        errors.append(f"showing first {len(rows)} matches — narrow the search")
+    return permits, errors
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -1041,7 +1159,8 @@ def lookup(raw_input: str) -> dict:
                 }
         elif (city and city in SEPARATE_PORTALS
               and city not in ("seattle", "shoreline")
-              and city not in CIVIC_ACCESS_PORTALS):
+              and city not in CIVIC_ACCESS_PORTALS
+              and city not in ACCELA_PORTALS):
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -1096,6 +1215,24 @@ def lookup(raw_input: str) -> dict:
             searched_jurisdictions.append(f"{ca_city.title()} (EnerGov Civic Access)")
             errors.extend(f"{ca_city.title()} EnerGov: {error}" for error in ca_errors)
 
+    # Accela Citizen Access (Woodinville; Black Diamond via King County's agency).
+    # A matching city address searches its agency; permit/parcel searches (no
+    # city context) query each unique Accela agency once.
+    if input_type == "address" and city in ACCELA_PORTALS:
+        ac_permits, ac_errors = search_accela(
+            ACCELA_PORTALS[city], input_type, value, city.title())
+        all_permits.extend(ac_permits)
+        searched_jurisdictions.append(f"{city.title()} (Accela)")
+        errors.extend(f"{city.title()} Accela: {error}" for error in ac_errors)
+    elif input_type in ("permit", "parcel"):
+        for agency in sorted(set(ACCELA_PORTALS.values())):
+            label = ACCELA_AGENCY_LABEL.get(agency, agency)
+            ac_permits, ac_errors = search_accela(
+                agency, input_type, value, label)
+            all_permits.extend(ac_permits)
+            searched_jurisdictions.append(f"{label} (Accela)")
+            errors.extend(f"{label} Accela: {error}" for error in ac_errors)
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -1115,6 +1252,7 @@ def lookup(raw_input: str) -> dict:
         or city in ENERGOV_PORTALS
         or city == "seattle"
         or city in CIVIC_ACCESS_PORTALS
+        or city in ACCELA_PORTALS
     )
     if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())

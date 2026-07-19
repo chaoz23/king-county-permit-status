@@ -41,6 +41,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("6600750005")
 
@@ -52,6 +53,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "King County", "Bellevue", "Renton (EnerGov)",
             "Bellevue Open Data", "Shoreline (eTRAKiT)",
             "Redmond (EnerGov Civic Access)",
+            "Woodinville (Accela)", "King County (Accela)",
         ])
 
     def test_formatted_parcel_reaches_sources_as_digits(self):
@@ -64,6 +66,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             lookup.lookup("722200-0353")
 
@@ -84,6 +87,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -104,6 +108,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -119,6 +124,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -128,6 +134,7 @@ class ParcelRoutingTests(unittest.TestCase):
         self.assertEqual(result["searched"], [
             "Renton (EnerGov)", "Bellevue Open Data", "Shoreline (eTRAKiT)",
             "Redmond (EnerGov Civic Access)",
+            "Woodinville (Accela)", "King County (Accela)",
         ])
 
     def test_duplicate_permits_from_sources_are_collapsed(self):
@@ -150,6 +157,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -165,6 +173,7 @@ class CityRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
         ):
             result = lookup.lookup("919 109th Ave NE, Bellevue, WA")
 
@@ -489,6 +498,7 @@ class SeattleSourceTests(unittest.TestCase):
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
             patch.object(
                 lookup,
                 "search_seattle",
@@ -992,6 +1002,82 @@ class CivicAccessSearchTests(unittest.TestCase):
     def test_civic_access_permit_formats_detect_as_permit(self):
         for number in ("FDM-2600855", "ELEC-2025-08133", "FIRE-2022-02703"):
             self.assertEqual(lookup.detect_input_type(number)[0], "permit", number)
+
+
+class AccelaSearchTests(unittest.TestCase):
+    def _page(self, rows_html):
+        return (
+            '<table id="ctl00_PlaceHolderMain_CapView_gdvPermitList">'
+            '<tr><th>Date</th><th>Record Number</th></tr>'
+            + rows_html + '</table>Showing 1-1 of 1')
+
+    # Woodinville layout: Date, Record#, Type, Project, Address, Status
+    WOODINVILLE = ('<tr>'
+                   '<td>06/18/2026</td><td>ROW26100</td><td>Right of Way Permit</td>'
+                   '<td>Comcast ROW</td><td>13206 NE 201ST CT WOODINVILLE WA 98072</td>'
+                   '<td>Issued</td></tr>')
+    # kingco layout: Date, Record#, Type, Module, empty, Address, dup, Status
+    KINGCO = ('<tr>'
+              '<td>07/15/2026</td><td>MECH26-1265</td><td>Building Mechanical Residential</td>'
+              '<td>Building</td><td></td><td>33230 293RD AVE SE, BLACK DIAMOND, WA 98010</td>'
+              '<td>33230 293RD AVE SE dup</td><td>Permit Issued</td></tr>')
+
+    def _opener(self, page):
+        class Resp:
+            def read(self):
+                return page.encode()
+
+        class Opener:
+            def open(self, request, timeout):
+                return Resp()
+        return Opener()
+
+    def test_woodinville_layout_parses(self):
+        with patch.object(lookup.urllib.request, "build_opener",
+                          return_value=self._opener(self._page(self.WOODINVILLE))):
+            permits, errors = lookup.search_accela(
+                "WOODINVILLE", "address", "13206 NE 201st Ct", "Woodinville")
+        self.assertEqual(errors, [])
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "ROW26100")
+        self.assertEqual(p["type"], "Right of Way Permit")
+        self.assertEqual(p["status"], "Issued")
+        self.assertEqual(p["applied_date"], "2026-06-18")
+        self.assertEqual(p["jurisdiction"], "Woodinville")
+        self.assertIn("13206 NE 201ST CT", p["address"])
+
+    def test_kingco_layout_status_is_last_cell(self):
+        with patch.object(lookup.urllib.request, "build_opener",
+                          return_value=self._opener(self._page(self.KINGCO))):
+            permits, _ = lookup.search_accela(
+                "kingco", "address", "33230 293rd Ave SE", "Black Diamond")
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "MECH26-1265")
+        self.assertEqual(p["status"], "Permit Issued")   # last cell, not the dup address
+        self.assertIn("BLACK DIAMOND", p["address"].upper())
+        self.assertEqual(p["jurisdiction"], "Black Diamond")
+
+    def test_address_without_house_number_is_rejected_without_network(self):
+        with patch.object(lookup.urllib.request, "build_opener") as bo:
+            permits, errors = lookup.search_accela(
+                "WOODINVILLE", "address", "NE 201st Ct", "Woodinville")
+        bo.assert_not_called()
+        self.assertIn("house number", errors[0])
+
+    def test_connection_failure_is_reported(self):
+        class Opener:
+            def open(self, request, timeout):
+                raise OSError("offline")
+        with patch.object(lookup.urllib.request, "build_opener",
+                          return_value=Opener()):
+            permits, errors = lookup.search_accela(
+                "WOODINVILLE", "parcel", "1234567890", "Woodinville")
+        self.assertEqual(permits, [])
+        self.assertEqual(errors, ["offline"])
+
+    def test_agency_config_shapes(self):
+        self.assertEqual(lookup.ACCELA_PORTALS["woodinville"], "WOODINVILLE")
+        self.assertEqual(lookup.ACCELA_PORTALS["black diamond"], "kingco")
 
 
 if __name__ == "__main__":

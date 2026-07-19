@@ -40,6 +40,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("6600750005")
 
@@ -50,6 +51,7 @@ class ParcelRoutingTests(unittest.TestCase):
         self.assertEqual(result["searched"], [
             "King County", "Bellevue", "Renton (EnerGov)",
             "Bellevue Open Data", "Shoreline (eTRAKiT)",
+            "Redmond (EnerGov Civic Access)",
         ])
 
     def test_formatted_parcel_reaches_sources_as_digits(self):
@@ -61,6 +63,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             lookup.lookup("722200-0353")
 
@@ -80,6 +83,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[energov_permit()]) as search_energov,
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -99,6 +103,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[energov_permit()]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -113,6 +118,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -121,6 +127,7 @@ class ParcelRoutingTests(unittest.TestCase):
         self.assertIn("Could not connect to MyBuildingPermit", result["message"])
         self.assertEqual(result["searched"], [
             "Renton (EnerGov)", "Bellevue Open Data", "Shoreline (eTRAKiT)",
+            "Redmond (EnerGov Civic Access)",
         ])
 
     def test_duplicate_permits_from_sources_are_collapsed(self):
@@ -142,6 +149,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[energov_permit()]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -156,6 +164,7 @@ class CityRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_permits", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
         ):
             result = lookup.lookup("919 109th Ave NE, Bellevue, WA")
 
@@ -479,6 +488,7 @@ class SeattleSourceTests(unittest.TestCase):
             patch.object(lookup, "search_energov", return_value=[]),
             patch.object(lookup, "search_bellevue", return_value=[]),
             patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(
                 lookup,
                 "search_seattle",
@@ -908,6 +918,80 @@ class ShorelineSearchTests(unittest.TestCase):
         self.assertIn("Shoreline", str(result["searched"]))
         self.assertTrue(
             any(p["jurisdiction"] == "Shoreline" for p in result["permits"]))
+
+
+class CivicAccessSearchTests(unittest.TestCase):
+    CRITERIA = json.dumps({"Result": {
+        "Keyword": "", "ExactMatch": False, "SearchModule": 1,
+        "FilterModule": 0, "PermitCriteria": {}, "PlanCriteria": {},
+    }})
+
+    def _row(self, number="ELEC-2025-08133"):
+        return {
+            "CaseNumber": number, "CaseType": "Electrical - Multi-Family",
+            "CaseStatus": "Finaled", "Description": "panel upgrade",
+            "ModuleName": 2, "MainParcel": "0225059115",
+            "Address": {"FullAddress": "16080 NE 85TH ST REDMOND WA 98052"},
+            "ApplyDate": "2025-09-01T00:00:00", "IssueDate": "2025-10-01T00:00:00",
+            "FinalDate": "2025-10-31T00:00:00", "ExpireDate": None,
+        }
+
+    def _urlopen(self, search_payload):
+        """Return a urlopen stub: GET /criteria, then POST /search."""
+        def urlopen(request, timeout):
+            url = request.full_url
+            body = self.CRITERIA if url.endswith("/criteria") else search_payload
+
+            class Resp:
+                def read(self):
+                    return body.encode()
+            return Resp()
+        return urlopen
+
+    def test_permit_search_normalizes_to_schema(self):
+        payload = json.dumps({"Result": {
+            "EntityResults": [self._row()], "TotalPages": 1}})
+        with patch.object(lookup.urllib.request, "urlopen",
+                          side_effect=self._urlopen(payload)):
+            permits, errors = lookup.search_energov_civicaccess(
+                "redmond", "permit", "ELEC-2025-08133")
+        self.assertEqual(errors, [])
+        self.assertEqual(len(permits), 1)
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "ELEC-2025-08133")
+        self.assertEqual(p["status"], "Finaled")
+        self.assertEqual(p["jurisdiction"], "Redmond")
+        self.assertEqual(p["applied_date"], "2025-09-01")
+        self.assertEqual(p["finaled_date"], "2025-10-31")
+        self.assertEqual(p["address"], "16080 NE 85TH ST REDMOND WA 98052")
+
+    def test_placeholder_date_becomes_null(self):
+        row = self._row()
+        row["ApplyDate"] = "1901-01-01T00:00:00"
+        payload = json.dumps({"Result": {"EntityResults": [row], "TotalPages": 1}})
+        with patch.object(lookup.urllib.request, "urlopen",
+                          side_effect=self._urlopen(payload)):
+            permits, _ = lookup.search_energov_civicaccess(
+                "redmond", "permit", "X")
+        self.assertIsNone(permits[0]["applied_date"])
+
+    def test_unknown_city_is_noop_without_network(self):
+        with patch.object(lookup.urllib.request, "urlopen") as urlopen:
+            permits, errors = lookup.search_energov_civicaccess(
+                "nowhere", "permit", "X")
+        urlopen.assert_not_called()
+        self.assertEqual((permits, errors), ([], []))
+
+    def test_address_without_house_number_is_rejected_without_network(self):
+        with patch.object(lookup.urllib.request, "urlopen") as urlopen:
+            permits, errors = lookup.search_energov_civicaccess(
+                "redmond", "address", "NE 85th St")
+        urlopen.assert_not_called()
+        self.assertIn("house number", errors[0])
+
+    def test_civic_access_permit_formats_detect_as_permit(self):
+        for number in ("FDM-2600855", "ELEC-2025-08133", "FIRE-2022-02703"):
+            self.assertEqual(lookup.detect_input_type(number)[0], "permit", number)
 
 
 if __name__ == "__main__":

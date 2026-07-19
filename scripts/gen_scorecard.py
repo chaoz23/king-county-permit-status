@@ -24,7 +24,8 @@ END_SUM = "<!-- END COVERAGE -->"
 DEDICATED = {"renton": "Renton (EnerGov)",
              "seattle": "Seattle (SDCI Open Data)",
              "bellevue": "Bellevue (Open Data)",
-             "shoreline": "Shoreline (eTRAKiT)"}
+             "shoreline": "Shoreline (eTRAKiT)",
+             "redmond": "Redmond (EnerGov Civic Access)"}
 
 # Display names where title-casing the routing_data key is wrong.
 NAME_OVERRIDES = {"seatac": "SeaTac"}

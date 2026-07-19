@@ -19,6 +19,7 @@ Exit codes:
 
 from __future__ import annotations
 
+import concurrent.futures
 import csv
 import io
 import json
@@ -1075,49 +1076,101 @@ def lookup(raw_input: str) -> dict:
             return None
         return search_permits(opener, token, *args, **kwargs)
 
-    if input_type == "permit":
-        # Search MyBuildingPermit jurisdictions first
-        for jid, jname in JURISDICTIONS.items():
-            results = search_mbp(jid, search_by="PermitNumber",
-                                 permit_number=value)
-            if results is None:
-                break
-            if isinstance(results, list) and results:
-                all_permits.extend(results)
-                searched_jurisdictions.append(jname)
-                break  # permit numbers are unique
-            elif isinstance(results, str):
-                errors.append(f"{jname}: {results}")
+    if input_type in ("permit", "parcel"):
+        # Permit and parcel searches have no city to route on, so they fan out
+        # to every source. The sources are independent (each manages its own
+        # session; only t_mbp touches the shared MBP opener, and it runs alone),
+        # so run them concurrently and aggregate in a fixed order — same results,
+        # a fraction of the wall-clock.
+        exact = input_type == "permit"
 
-        # Also check EnerGov portals (permit numbers are unique to their portal)
-        for portal_key, pcfg in ENERGOV_PORTALS.items():
-            eg = search_energov(portal_key, value, exact=True)
-            if eg:
-                all_permits.extend(eg)
-                searched_jurisdictions.append(f"{portal_key.title()} (EnerGov)")
+        def t_mbp():
+            s, p, er = [], [], []
+            if input_type == "permit":
+                for jid, jname in JURISDICTIONS.items():
+                    r = search_mbp(jid, search_by="PermitNumber",
+                                   permit_number=value)
+                    if r is None:
+                        break
+                    if isinstance(r, list) and r:
+                        p.extend(r)
+                        s.append(jname)
+                        break  # permit numbers are unique
+                    elif isinstance(r, str):
+                        er.append(f"{jname}: {r}")
             else:
-                searched_jurisdictions.append(f"{portal_key.title()} (EnerGov — not found)")
+                for jid in JURISDICTIONS:
+                    r = search_mbp(jid, parcel=value)
+                    if r is None:
+                        continue
+                    jname = JURISDICTIONS.get(jid, jid)
+                    s.append(jname)
+                    if isinstance(r, list):
+                        p.extend(r)
+                    elif isinstance(r, str):
+                        er.append(f"{jname}: {r}")
+            return s, p, er
 
-    elif input_type == "parcel":
-        # A bare parcel number has no city text to route on. Query every
-        # MyBuildingPermit jurisdiction so city permits are not missed.
-        for jid in JURISDICTIONS:
-            results = search_mbp(jid, parcel=value)
-            if results is None:
-                continue
-            jname = JURISDICTIONS.get(jid, jid)
-            searched_jurisdictions.append(jname)
-            if isinstance(results, list):
-                all_permits.extend(results)
-            elif isinstance(results, str):
-                errors.append(f"{jname}: {results}")
+        def t_energov():
+            s, p = [], []
+            for portal_key in ENERGOV_PORTALS:
+                eg = search_energov(portal_key, value, exact=exact)
+                if eg:
+                    p.extend(eg)
+                    s.append(f"{portal_key.title()} (EnerGov)")
+                elif input_type == "permit":
+                    s.append(f"{portal_key.title()} (EnerGov — not found)")
+                else:
+                    s.append(f"{portal_key.title()} (EnerGov)")
+            return s, p, []
 
-        # A bare parcel number has no city text to route on. Query every
-        # configured EnerGov portal so supported city permits are not missed.
-        for portal_key in ENERGOV_PORTALS:
-            eg = search_energov(portal_key, value, exact=False)
-            all_permits.extend(eg)
-            searched_jurisdictions.append(f"{portal_key.title()} (EnerGov)")
+        def t_bellevue():
+            b = search_bellevue(input_type, value)
+            if isinstance(b, list):
+                return ["Bellevue Open Data"], b, []
+            return ["Bellevue Open Data"], [], [f"Bellevue Open Data: {b}"]
+
+        def t_shoreline():
+            p, er = search_shoreline(input_type, value)
+            return (["Shoreline (eTRAKiT)"], p,
+                    [f"Shoreline eTRAKiT: {e}" for e in er])
+
+        thunks = [t_mbp, t_energov, t_bellevue, t_shoreline]
+
+        if input_type == "permit":
+            def t_seattle():
+                p, er = search_seattle("permit", value)
+                return (["Seattle Open Data"], p,
+                        [f"Seattle Open Data — {e}" for e in er])
+            thunks.append(t_seattle)
+
+        for _ca in CIVIC_ACCESS_PORTALS:
+            def t_civic(c=_ca):
+                p, er = search_energov_civicaccess(c, input_type, value)
+                return ([f"{c.title()} (EnerGov Civic Access)"], p,
+                        [f"{c.title()} EnerGov: {e}" for e in er])
+            thunks.append(t_civic)
+
+        for _ag in sorted(set(ACCELA_PORTALS.values())):
+            def t_accela(a=_ag):
+                label = ACCELA_AGENCY_LABEL.get(a, a)
+                p, er = search_accela(a, input_type, value, label)
+                return ([f"{label} (Accela)"], p,
+                        [f"{label} Accela: {e}" for e in er])
+            thunks.append(t_accela)
+
+        def _safe(fn):
+            try:
+                return fn()
+            except Exception as exc:  # one source failing must not sink the rest
+                return [], [], [str(exc)]
+
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(10, len(thunks))) as pool:
+            for s, p, er in pool.map(_safe, thunks):
+                searched_jurisdictions.extend(s)
+                all_permits.extend(p)
+                errors.extend(er)
 
     else:  # address
         house, street = parse_address(value)
@@ -1168,8 +1221,8 @@ def lookup(raw_input: str) -> dict:
             }
 
     # Bellevue's former EnerGov hostname is retired. Its official Open Data
-    # layer is current, daily refreshed, and supports all three input types.
-    if input_type in ("permit", "parcel") or city in (None, "bellevue"):
+    # layer is current, daily refreshed. (Permit/parcel handled above.)
+    if input_type == "address" and city in (None, "bellevue"):
         bellevue = search_bellevue(input_type, value)
         searched_jurisdictions.append("Bellevue Open Data")
         if isinstance(bellevue, list):
@@ -1177,8 +1230,8 @@ def lookup(raw_input: str) -> dict:
         else:
             errors.append(f"Bellevue Open Data: {bellevue}")
 
-    # Seattle's official Open Data covers address and exact permit searches.
-    if input_type == "permit" or (input_type == "address" and city == "seattle"):
+    # Seattle's official Open Data. (Permit searches handled above.)
+    if input_type == "address" and city == "seattle":
         seattle_permits, seattle_errors = search_seattle(input_type, value)
         all_permits.extend(seattle_permits)
         searched_jurisdictions.append("Seattle Open Data")
@@ -1198,7 +1251,7 @@ def lookup(raw_input: str) -> dict:
     # land-use permits. Queried for permit/parcel searches (no city context) and
     # for Shoreline addresses. Electrical is issued by WA L&I (Shoreline does not
     # run its own program), so it is covered by the L&I layer below.
-    if input_type in ("permit", "parcel") or city == "shoreline":
+    if input_type == "address" and city == "shoreline":
         shoreline_permits, shoreline_errors = search_shoreline(input_type, value)
         all_permits.extend(shoreline_permits)
         searched_jurisdictions.append("Shoreline (eTRAKiT)")
@@ -1208,7 +1261,7 @@ def lookup(raw_input: str) -> dict:
     # including electrical. Queried for permit/parcel searches (no city context)
     # and for a matching city address.
     for ca_city in CIVIC_ACCESS_PORTALS:
-        if input_type in ("permit", "parcel") or city == ca_city:
+        if input_type == "address" and city == ca_city:
             ca_permits, ca_errors = search_energov_civicaccess(
                 ca_city, input_type, value)
             all_permits.extend(ca_permits)
@@ -1224,14 +1277,6 @@ def lookup(raw_input: str) -> dict:
         all_permits.extend(ac_permits)
         searched_jurisdictions.append(f"{city.title()} (Accela)")
         errors.extend(f"{city.title()} Accela: {error}" for error in ac_errors)
-    elif input_type in ("permit", "parcel"):
-        for agency in sorted(set(ACCELA_PORTALS.values())):
-            label = ACCELA_AGENCY_LABEL.get(agency, agency)
-            ac_permits, ac_errors = search_accela(
-                agency, input_type, value, label)
-            all_permits.extend(ac_permits)
-            searched_jurisdictions.append(f"{label} (Accela)")
-            errors.extend(f"{label} Accela: {error}" for error in ac_errors)
 
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical

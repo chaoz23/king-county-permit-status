@@ -102,6 +102,10 @@ def detect_input_type(raw: str) -> tuple[str, str]:
     # MBP-style: ADDC21-0275; EnerGov-style: B25000947, E26000458
     if re.match(r"[A-Z]{1,4}\d{2}[-\d]\d{3,6}$", s, re.IGNORECASE):
         return "permit", s
+    # EnerGov Civic Access-style: FDM-2600855, ELEC-2025-08133, FIRE-2022-02703
+    # (a letters-dash-digits token; real addresses always contain a space).
+    if re.fullmatch(r"[A-Z]{1,6}-\d{3,8}(?:-\d{3,8})?", s, re.IGNORECASE):
+        return "permit", s
     return "address", s
 
 
@@ -794,6 +798,128 @@ def search_shoreline(input_type: str, value: str) -> tuple[list[dict], list[str]
     return _parse_shoreline_csv(body), []
 
 
+# Tyler EnerGov "Civic Access" self-service portals. Same search contract as
+# the Renton EnerGov integration (tenant headers + a criteria-template body),
+# but Tyler-hosted with a per-city tenant, and scoped to the Permit module via
+# FilterModule=2. Public/unauthenticated. Add a city by capturing its {host,
+# tenant} once and dropping it in here — no new code.
+CIVIC_ACCESS_PORTALS = {
+    "redmond": {
+        "host": "cityofredmondwa-energovweb.tylerhost.net",
+        "tenant": "RedmondWA Prod",
+    },
+}
+CIVIC_ACCESS_MAX_PAGES = 8  # 25/page; safety cap for broad street matches
+
+
+def _civicaccess_date(raw: str | None) -> str | None:
+    """ISO datetime -> YYYY-MM-DD. EnerGov placeholder years (<1902) -> None."""
+    if not raw or not isinstance(raw, str):
+        return None
+    iso = raw[:10]
+    return None if iso[:4] in ("0001", "1900", "1901") else iso
+
+
+def _civicaccess_permit(row: dict, city: str, portal_url: str) -> dict:
+    """Normalize one Civic Access permit record to the shared schema."""
+    address = row.get("Address") or {}
+    return {
+        "permit_number": row.get("CaseNumber") or "",
+        "type": row.get("CaseType") or "",
+        "status": row.get("CaseStatus") or "",
+        "description": row.get("Description") or "",
+        "address": (address.get("FullAddress")
+                    or row.get("AddressDisplay") or "").strip(),
+        "jurisdiction": city.title(),
+        "applied_date": _civicaccess_date(row.get("ApplyDate")),
+        "issued_date": _civicaccess_date(row.get("IssueDate")),
+        "finaled_date": _civicaccess_date(
+            row.get("FinalDate") or row.get("CompleteDate")),
+        "expires_date": _civicaccess_date(row.get("ExpireDate")),
+        "portal": portal_url,
+    }
+
+
+def search_energov_civicaccess(city: str, input_type: str,
+                               value: str) -> tuple[list[dict], list[str]]:
+    """Search a Tyler EnerGov Civic Access portal's permit records.
+
+    Mirrors the Renton EnerGov flow: GET the criteria template, then POST a
+    keyword search scoped to the Permit module (SearchModule=1, FilterModule=2)
+    with the city's tenant headers. ExactMatch keeps address/parcel/permit
+    lookups precise. Returns the shared (permits, errors) shape.
+    """
+    portal = CIVIC_ACCESS_PORTALS.get(city)
+    if not portal:
+        return [], []
+    if input_type == "address":
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        keyword = f"{house} {street}"
+    elif input_type == "parcel":
+        keyword = re.sub(r"\D", "", value)
+    else:  # permit
+        keyword = value.strip()
+    if not keyword:
+        return [], []
+
+    host = portal["host"]
+    base = f"https://{host}/apps/selfservice/api/energov/search"
+    portal_url = f"https://{host}/apps/selfservice#/search"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json;charset=UTF-8",
+        "tenantId": "1",
+        "tenantName": portal["tenant"],
+        "Tyler-TenantUrl": portal["tenant"],
+        "Tyler-Tenant-Culture": "en-US",
+        "Referer": f"https://{host}/apps/selfservice",
+    }
+
+    def api(path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(
+            base + path, data=data, headers=headers,
+            method="POST" if data else "GET")
+        return json.loads(
+            urllib.request.urlopen(req, timeout=30).read().decode())
+
+    try:
+        template = api("/criteria")["Result"]
+    except Exception as error:
+        return [], [str(error)]
+
+    permits, errors = [], []
+    total_pages = 1
+    page = 1
+    while page <= CIVIC_ACCESS_MAX_PAGES:
+        criteria = dict(template)
+        criteria.update({
+            "Keyword": keyword, "ExactMatch": True,
+            "SearchModule": 1, "FilterModule": 2,  # permit module only
+            "PageNumber": page, "PageSize": 25,
+            "SortBy": None, "SortAscending": False,
+        })
+        try:
+            result = api("/search", criteria)["Result"]
+        except Exception as error:
+            errors.append(str(error))
+            break
+        rows = result.get("EntityResults") or []
+        permits.extend(_civicaccess_permit(r, city, portal_url) for r in rows)
+        total_pages = result.get("TotalPages") or 1
+        if page >= total_pages or not rows:
+            break
+        page += 1
+    if total_pages > CIVIC_ACCESS_MAX_PAGES:
+        errors.append(
+            f"showing first {CIVIC_ACCESS_MAX_PAGES * 25} of "
+            f"{total_pages * 25}+ matches — narrow the search")
+    return permits, errors
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -913,7 +1039,9 @@ def lookup(raw_input: str) -> dict:
                         f"{city.title()} search — check the city portal directly."
                     ),
                 }
-        elif city and city in SEPARATE_PORTALS and city not in ("seattle", "shoreline"):
+        elif (city and city in SEPARATE_PORTALS
+              and city not in ("seattle", "shoreline")
+              and city not in CIVIC_ACCESS_PORTALS):
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -957,6 +1085,17 @@ def lookup(raw_input: str) -> dict:
         searched_jurisdictions.append("Shoreline (eTRAKiT)")
         errors.extend(f"Shoreline eTRAKiT: {error}" for error in shoreline_errors)
 
+    # Tyler EnerGov Civic Access portals (Redmond, ...). Full permit history
+    # including electrical. Queried for permit/parcel searches (no city context)
+    # and for a matching city address.
+    for ca_city in CIVIC_ACCESS_PORTALS:
+        if input_type in ("permit", "parcel") or city == ca_city:
+            ca_permits, ca_errors = search_energov_civicaccess(
+                ca_city, input_type, value)
+            all_permits.extend(ca_permits)
+            searched_jurisdictions.append(f"{ca_city.title()} (EnerGov Civic Access)")
+            errors.extend(f"{ca_city.title()} EnerGov: {error}" for error in ca_errors)
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -975,6 +1114,7 @@ def lookup(raw_input: str) -> dict:
         city in JURIS_BY_NAME
         or city in ENERGOV_PORTALS
         or city == "seattle"
+        or city in CIVIC_ACCESS_PORTALS
     )
     if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())

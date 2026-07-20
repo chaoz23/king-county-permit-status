@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -42,6 +43,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("6600750005")
 
@@ -54,6 +56,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "Bellevue Open Data", "Shoreline (eTRAKiT)",
             "Redmond (EnerGov Civic Access)",
             "Woodinville (Accela)", "King County (Accela)",
+            "Normandy Park (SmartGov)", "Carnation (SmartGov)",
         ])
 
     def test_formatted_parcel_reaches_sources_as_digits(self):
@@ -67,6 +70,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             lookup.lookup("722200-0353")
 
@@ -88,6 +92,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -109,6 +114,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -125,6 +131,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -135,6 +142,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "Renton (EnerGov)", "Bellevue Open Data", "Shoreline (eTRAKiT)",
             "Redmond (EnerGov Civic Access)",
             "Woodinville (Accela)", "King County (Accela)",
+            "Normandy Park (SmartGov)", "Carnation (SmartGov)",
         ])
 
     def test_duplicate_permits_from_sources_are_collapsed(self):
@@ -158,6 +166,7 @@ class ParcelRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("7222000353")
 
@@ -174,6 +183,7 @@ class CityRoutingTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
         ):
             result = lookup.lookup("919 109th Ave NE, Bellevue, WA")
 
@@ -499,6 +509,7 @@ class SeattleSourceTests(unittest.TestCase):
             patch.object(lookup, "search_shoreline", return_value=([], [])),
             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
             patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
             patch.object(
                 lookup,
                 "search_seattle",
@@ -1078,6 +1089,79 @@ class AccelaSearchTests(unittest.TestCase):
     def test_agency_config_shapes(self):
         self.assertEqual(lookup.ACCELA_PORTALS["woodinville"], "WOODINVILLE")
         self.assertEqual(lookup.ACCELA_PORTALS["black diamond"], "kingco")
+
+
+class SmartGovSearchTests(unittest.TestCase):
+    PAGE = '<input id="_conv" name="_conv" value="1">'
+    RESULTS = (
+        '<div class="search-result-item"><article>'
+        '<div class="search-result-title">'
+        '<a onclick="FormSupport.submitAction( \'Detail/abc-123\' );">D-25-005</a>'
+        '</div>'
+        '<div class="row"><div class="col-lg-3">'
+        '<div class="">Demolition</div>'
+        '<div class="">Closed, 4/1/2026</div></div>'
+        '<div class="col-lg-4"><div>18527 NORMANDY TER SW</div>'
+        '<div>NORMANDY PARK, WA</div></div></div>'
+        '</article></div>')
+
+    def _opener(self, results):
+        pages = iter([self.PAGE, results])
+
+        class Resp:
+            def __init__(self, body):
+                self.body = body
+
+            def read(self):
+                return self.body.encode()
+
+        class Opener:
+            def open(self, request, timeout):
+                return Resp(next(pages))
+        return Opener()
+
+    def test_token_embeds_current_timestamp(self):
+        import time
+        tok = lookup._smartgov_token()
+        # The token is letters spliced around/into the epoch-ms timestamp;
+        # stripping non-digits recovers the timestamp, which must be ~now.
+        ms = int(re.sub(r"\D", "", tok))
+        self.assertTrue(abs(ms - int(time.time() * 1000)) < 86_400_000, tok)
+
+    def test_address_search_parses_result_card(self):
+        with patch.object(lookup.urllib.request, "build_opener",
+                          return_value=self._opener(self.RESULTS)):
+            permits, errors = lookup.search_smartgov(
+                "normandy park", "address", "18527 Normandy Ter SW")
+        self.assertEqual(errors, [])
+        self.assertEqual(len(permits), 1)
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "D-25-005")
+        self.assertEqual(p["type"], "Demolition")
+        self.assertEqual(p["status"], "Closed")
+        self.assertEqual(p["applied_date"], "2026-04-01")
+        self.assertEqual(p["jurisdiction"], "Normandy Park")
+        self.assertIn("18527 NORMANDY TER SW", p["address"])
+        self.assertIn("Detail/abc-123", p["portal"])
+
+    def test_no_results_page_returns_empty(self):
+        with patch.object(lookup.urllib.request, "build_opener",
+                          return_value=self._opener(
+                              '<div class="alert">No results found</div>')):
+            permits, errors = lookup.search_smartgov(
+                "carnation", "permit", "X-1")
+        self.assertEqual((permits, errors), ([], []))
+
+    def test_unknown_city_is_noop_without_network(self):
+        with patch.object(lookup.urllib.request, "build_opener") as bo:
+            permits, errors = lookup.search_smartgov("nowhere", "permit", "X")
+        bo.assert_not_called()
+        self.assertEqual((permits, errors), ([], []))
+
+    def test_portal_config(self):
+        self.assertEqual(lookup.SMARTGOV_PORTALS["normandy park"],
+                         "ci-normandypark-wa")
+        self.assertEqual(lookup.SMARTGOV_PORTALS["carnation"], "ci-carnation-wa")
 
 
 if __name__ == "__main__":

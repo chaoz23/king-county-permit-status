@@ -23,6 +23,7 @@ import concurrent.futures
 import csv
 import io
 import json
+import random
 import re
 import sys
 import urllib.request
@@ -1055,6 +1056,133 @@ def search_accela(agency: str, input_type: str, value: str,
     return permits, errors
 
 
+# SmartGov public portals (Paladin Data Systems / Granicus GXA). The basic
+# search is a full-page POST to /ApplicationPublic/ApplicationSearch/Search with
+# a `query` keyword and a client-generated `__submitFormValidator__` token — an
+# obfuscated current-timestamp (see _smartgov_token). Results render server-side
+# as `search-result-item` cards. Reusable across SmartGov cities via config.
+SMARTGOV_PORTALS = {          # city -> smartgovcommunity.com subdomain
+    "normandy park": "ci-normandypark-wa",
+    "carnation": "ci-carnation-wa",
+}
+SMARTGOV_FIELDS = "_conv\tquery\tSearch\t_applicationSearchPage\t__submitFormValidator__"
+
+
+def _smartgov_token() -> str:
+    """Reproduce FormSupport.requestVerificationString(): a random char, the
+    current epoch-ms, and a random char, with 3 more random a-z chars spliced in
+    at a random position. The server decodes the embedded timestamp."""
+    def rc():
+        return chr(random.randint(97, 122))  # a-z, per randomChar()
+    val = rc() + str(int(datetime.now().timestamp() * 1000)) + rc()
+    middle = rc() + rc() + rc()
+    pos = random.randint(0, 9)
+    return val[:pos] + middle + val[pos:]
+
+
+def _smartgov_date(raw: str | None) -> str | None:
+    """SmartGov's M/D/YYYY status date -> YYYY-MM-DD."""
+    try:
+        return datetime.strptime((raw or "").strip(), "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _parse_smartgov(html: str, city: str, base: str) -> list[dict]:
+    """Normalize SmartGov result cards to the shared permit schema."""
+    permits = []
+    for item in re.findall(
+            r'<div class="search-result-item">(.*?)</article>', html, re.S):
+        title = re.search(
+            r"submitAction\(\s*'Detail/([a-f0-9-]+)'\s*\)[^>]*>\s*([^<]+)", item)
+        if not title:
+            continue
+        guid, number = title.group(1), title.group(2).strip()
+        texts = []
+        for raw in re.findall(r"<div[^>]*>(.*?)</div>", item, re.S):
+            txt = re.sub(r"\s+", " ", html_unescape(re.sub(r"<[^>]+>", "", raw))).strip()
+            if txt and txt != number and txt not in texts:
+                texts.append(txt)
+        ptype = texts[0] if texts else ""
+        # Status shows as "<Status>, M/D/YYYY" (the status-transition date — the
+        # only date in the search view; used as applied_date for sorting).
+        status, date = "", None
+        for txt in texts:
+            m = re.match(r"(.+?),\s*(\d{1,2}/\d{1,2}/\d{4})$", txt)
+            if m:
+                status, date = m.group(1).strip(), _smartgov_date(m.group(2))
+                break
+        address = ""
+        for i, txt in enumerate(texts):
+            if re.search(r",\s*WA\b", txt):
+                address = (f"{texts[i - 1]}, {txt}" if i else txt).strip(", ")
+                break
+        permits.append({
+            "permit_number": number,
+            "type": ptype,
+            "status": status,
+            "description": "",
+            "address": address,
+            "jurisdiction": city.title(),
+            "applied_date": date,
+            "issued_date": None,
+            "finaled_date": None,
+            "expires_date": None,
+            "portal": f"{base}/ApplicationPublic/ApplicationSearch/Detail/{guid}",
+        })
+    return permits
+
+
+def search_smartgov(city: str, input_type: str,
+                    value: str) -> tuple[list[dict], list[str]]:
+    """Search a SmartGov city's public portal via its keyword search.
+
+    GET the search page for a session cookie + `_conv`, then POST the keyword
+    with a freshly generated validator token. Returns (permits, errors).
+    """
+    host = SMARTGOV_PORTALS.get(city)
+    if not host:
+        return [], []
+    if input_type == "address":
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        query = f"{house} {street}"
+    elif input_type == "parcel":
+        query = re.sub(r"\D", "", value)
+    else:  # permit
+        query = value.strip()
+    if not query:
+        return [], []
+
+    base = f"https://{host}.smartgovcommunity.com"
+    path = "/ApplicationPublic/ApplicationSearch/Search"
+    headers = {"User-Agent": "Mozilla/5.0",
+               "Accept": "text/html,*/*;q=0.8",
+               "Accept-Language": "en-US,en;q=0.9"}
+    try:
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        page = opener.open(urllib.request.Request(base + path, headers=headers),
+                           timeout=30).read().decode("utf-8", "replace")
+        conv = (re.search(r'name="_conv"[^>]*value="([^"]*)"', page)
+                or [0, "1"])[1]
+        form = {
+            "_conv": conv, "query": query, "_applicationSearchPage": "0",
+            "__submitFormValidator__": _smartgov_token(),
+            "_fields": SMARTGOV_FIELDS,
+        }
+        req = urllib.request.Request(
+            base + path, data=urllib.parse.urlencode(form).encode(),
+            headers={**headers,
+                     "Content-Type": "application/x-www-form-urlencoded",
+                     "Referer": base + path})
+        body = opener.open(req, timeout=30).read().decode("utf-8", "replace")
+    except Exception as error:
+        return [], [str(error)]
+    return _parse_smartgov(body, city, base), []
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -1175,6 +1303,13 @@ def lookup(raw_input: str) -> dict:
                         [f"{label} Accela: {e}" for e in er])
             thunks.append(t_accela)
 
+        for _sg in SMARTGOV_PORTALS:
+            def t_smartgov(c=_sg):
+                p, er = search_smartgov(c, input_type, value)
+                return ([f"{c.title()} (SmartGov)"], p,
+                        [f"{c.title()} SmartGov: {e}" for e in er])
+            thunks.append(t_smartgov)
+
         def _safe(fn):
             try:
                 return fn()
@@ -1229,7 +1364,8 @@ def lookup(raw_input: str) -> dict:
         elif (city and city in SEPARATE_PORTALS
               and city not in ("seattle", "shoreline")
               and city not in CIVIC_ACCESS_PORTALS
-              and city not in ACCELA_PORTALS):
+              and city not in ACCELA_PORTALS
+              and city not in SMARTGOV_PORTALS):
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -1294,6 +1430,13 @@ def lookup(raw_input: str) -> dict:
         searched_jurisdictions.append(f"{city.title()} (Accela)")
         errors.extend(f"{city.title()} Accela: {error}" for error in ac_errors)
 
+    # SmartGov (Paladin/GXA) — Normandy Park, Carnation.
+    if input_type == "address" and city in SMARTGOV_PORTALS:
+        sg_permits, sg_errors = search_smartgov(city, input_type, value)
+        all_permits.extend(sg_permits)
+        searched_jurisdictions.append(f"{city.title()} (SmartGov)")
+        errors.extend(f"{city.title()} SmartGov: {error}" for error in sg_errors)
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -1314,6 +1457,7 @@ def lookup(raw_input: str) -> dict:
         or city == "seattle"
         or city in CIVIC_ACCESS_PORTALS
         or city in ACCELA_PORTALS
+        or city in SMARTGOV_PORTALS
     )
     if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())

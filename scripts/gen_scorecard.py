@@ -27,7 +27,9 @@ DEDICATED = {"renton": "Renton (EnerGov)",
              "shoreline": "Shoreline (eTRAKiT)",
              "redmond": "Redmond (EnerGov Civic Access)",
              "woodinville": "Woodinville (Accela)",
-             "black diamond": "Black Diamond (via King County)"}
+             "black diamond": "Black Diamond (via King County)",
+             "normandy park": "Normandy Park (SmartGov)",
+             "carnation": "Carnation (SmartGov)"}
 
 # Display names where title-casing the routing_data key is wrong.
 NAME_OVERRIDES = {"seatac": "SeaTac"}

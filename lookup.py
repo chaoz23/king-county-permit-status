@@ -897,10 +897,7 @@ def search_energov_civicaccess(city: str, input_type: str,
     except Exception as error:
         return [], [str(error)]
 
-    permits, errors = [], []
-    total_pages = 1
-    page = 1
-    while page <= CIVIC_ACCESS_MAX_PAGES:
+    def fetch_page(page):
         criteria = dict(template)
         criteria.update({
             "Keyword": keyword, "ExactMatch": True,
@@ -908,17 +905,36 @@ def search_energov_civicaccess(city: str, input_type: str,
             "PageNumber": page, "PageSize": 25,
             "SortBy": None, "SortAscending": False,
         })
-        try:
-            result = api("/search", criteria)["Result"]
-        except Exception as error:
-            errors.append(str(error))
-            break
-        rows = result.get("EntityResults") or []
-        permits.extend(_civicaccess_permit(r, city, portal_url) for r in rows)
-        total_pages = result.get("TotalPages") or 1
-        if page >= total_pages or not rows:
-            break
-        page += 1
+        return api("/search", criteria)["Result"]
+
+    # Fetch page 1 to learn the page count, then pull the rest concurrently —
+    # pagination is otherwise the long pole for a property with many records.
+    errors = []
+    try:
+        first = fetch_page(1)
+    except Exception as error:
+        return [], [str(error)]
+    total_pages = first.get("TotalPages") or 1
+    last_page = min(total_pages, CIVIC_ACCESS_MAX_PAGES)
+    results_by_page = {1: first}
+    if last_page > 1:
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(7, last_page - 1)) as pool:
+            futures = {pool.submit(fetch_page, p): p
+                       for p in range(2, last_page + 1)}
+            for fut in concurrent.futures.as_completed(futures):
+                page = futures[fut]
+                try:
+                    results_by_page[page] = fut.result()
+                except Exception as error:
+                    errors.append(str(error))
+
+    permits = []
+    for page in range(1, last_page + 1):
+        result = results_by_page.get(page)
+        if result:
+            permits.extend(_civicaccess_permit(r, city, portal_url)
+                           for r in (result.get("EntityResults") or []))
     if total_pages > CIVIC_ACCESS_MAX_PAGES:
         errors.append(
             f"showing first {CIVIC_ACCESS_MAX_PAGES * 25} of "

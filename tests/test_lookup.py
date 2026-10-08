@@ -1166,3 +1166,81 @@ class SmartGovSearchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProvenanceFieldTests(unittest.TestCase):
+    """#38 — additive provenance/convenience fields learned from Kolmo."""
+
+    def test_is_open_normalizes_vendor_vocabularies(self):
+        closed = ["Finaled", "Complete", "Closed", "Expired", "Withdrawn",
+                  "Cancelled", "Void", "Denied", "Final Inspection Complete"]
+        open_ = ["Issued", "In Review", "Applied", "Expiration Notice",
+                 "Application Incomplete", "Corrections Required", "On Hold"]
+        for s in closed:
+            self.assertFalse(lookup.is_open_status(s), s)
+        for s in open_:
+            self.assertTrue(lookup.is_open_status(s), s)
+        self.assertIsNone(lookup.is_open_status(""))
+        self.assertFalse(lookup.is_open_status("Issued", finaled_date="2025-01-01"))
+
+    def test_record_url_only_when_portal_is_the_record(self):
+        self.assertEqual(
+            lookup.record_url({"permit_number": "6145915-CN",
+                               "portal": "https://example.test/6145915-CN"}),
+            "https://example.test/6145915-CN")
+        self.assertEqual(
+            lookup.record_url({"permit_number": "BLD-1", "portal":
+                               "https://x.smartgovcommunity.com/ApplicationPublic/ApplicationSearch/Detail/abc"}),
+            "https://x.smartgovcommunity.com/ApplicationPublic/ApplicationSearch/Detail/abc")
+        self.assertIsNone(lookup.record_url(
+            {"permit_number": "B25000947", "portal": "https://permitting.rentonwa.gov"}))
+        self.assertIsNone(lookup.record_url({"permit_number": "X", "portal": None}))
+
+    def test_parcel_id_is_county_namespaced(self):
+        self.assertEqual(lookup.parcel_id("7222000353"), "king:7222000353")
+        self.assertEqual(lookup.parcel_id("722200-0353"), "king:7222000353")
+        self.assertIsNone(lookup.parcel_id(None))
+        self.assertIsNone(lookup.parcel_id("123"))
+
+    def _stub_sources(self):
+        patches = [
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_energov", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
+            patch.object(lookup, "search_seattle", return_value=([], [])),
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_envelope_fields_on_parcel_query(self):
+        self._stub_sources()
+        with patch.object(lookup, "search_energov", return_value=[{
+                "permit_number": "B25000947", "type": "Building", "status": "Issued",
+                "description": "", "address": "1817 Morris Ave S", "jurisdiction": "Renton",
+                "applied_date": "2025-01-01", "issued_date": None, "finaled_date": None,
+                "expires_date": None, "portal": "https://permitting.rentonwa.gov"}]):
+            result = lookup.lookup("7222000353")
+
+        self.assertEqual(result["action"], "found")
+        self.assertEqual(result["trust_level"], "live")
+        self.assertEqual(result["parcel_id"], "king:7222000353")
+        self.assertRegex(result["fetched_at"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$")
+        self.assertIn("King County Permit Status", result["cite_as"])
+        self.assertIn("Renton (EnerGov)", result["cite_as"])
+        p = result["permits"][0]
+        self.assertTrue(p["is_open"])
+        self.assertIsNone(p["record_url"])
+
+    def test_trust_level_partial_when_a_source_errors(self):
+        self._stub_sources()
+        with patch.object(lookup, "search_bellevue", return_value="timeout"):
+            result = lookup.lookup("7222000353")
+        self.assertEqual(result["trust_level"], "partial")
+        self.assertEqual(result["parcel_id"], "king:7222000353")

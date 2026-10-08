@@ -143,6 +143,12 @@ def render(rows):
             "Kirkland, Mercer Island, Sammamish) are **not** gaps — verified 2026-07-15 "
             "that MBP carries their electrical history. Closing the remaining gaps is "
             "tracked in the coverage epic.",
+            "",
+            "> ℹ️ **Split-county cities:** Milton (mostly Pierce), Pacific and Auburn "
+            "straddle the King/Pierce line. Each city issues its own permits for the "
+            "whole city, so the row above applies to both sides; only *county-level* "
+            "permits (septic, critical areas) differ — Pierce County's portal is not "
+            "searched. Parcel ids are county-namespaced (`king:…`) for this reason.",
             "", END]
     return "\n".join(out)
 

@@ -90,9 +90,47 @@
                 "null"
               ],
               "description": "Source permit or portal URL when available"
+            },
+            "record_url": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "URL of this specific permit record when the source exposes one; null when portal is only a search page"
+            },
+            "is_open": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Normalized across vendor status vocabularies: false when finaled/closed/expired/withdrawn/etc., null when the source exposes no status"
             }
           }
         }
+      },
+      "trust_level": {
+        "type": "string",
+        "enum": [
+          "live",
+          "partial",
+          "fallback"
+        ],
+        "description": "live \u2014 every applicable source answered; partial \u2014 some source errored or a city portal needs manual follow-up; fallback \u2014 nothing searchable, use separate_portal"
+      },
+      "fetched_at": {
+        "type": "string",
+        "description": "UTC ISO-8601 timestamp of this query; records are live, not cached"
+      },
+      "parcel_id": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "County-namespaced parcel id, e.g. 'king:7222000353', when the query was or resolved to a parcel"
+      },
+      "cite_as": {
+        "type": "string",
+        "description": "One-line attribution string for generated text"
       },
       "searched": {
         "type": "array",

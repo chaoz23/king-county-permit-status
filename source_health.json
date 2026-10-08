@@ -1,0 +1,186 @@
+{
+ "checked_at": "2026-10-08T19:26:51+00:00",
+ "summary": {
+  "ok": 25
+ },
+ "sources": {
+  "renton": {
+   "label": "Renton (EnerGov)",
+   "outcome": "ok",
+   "records": 24,
+   "detail": "24 records",
+   "elapsed_ms": 2079
+  },
+  "seattle": {
+   "label": "Seattle (SDCI Open Data)",
+   "outcome": "ok",
+   "records": 131,
+   "detail": "131 records",
+   "elapsed_ms": 4739
+  },
+  "bellevue": {
+   "label": "Bellevue (Open Data)",
+   "outcome": "ok",
+   "records": 356,
+   "detail": "356 records",
+   "elapsed_ms": 293
+  },
+  "shoreline": {
+   "label": "Shoreline (eTRAKiT)",
+   "outcome": "ok",
+   "records": 53,
+   "detail": "53 records",
+   "elapsed_ms": 871
+  },
+  "redmond": {
+   "label": "Redmond (EnerGov Civic Access)",
+   "outcome": "ok",
+   "records": 32,
+   "detail": "32 records",
+   "elapsed_ms": 12874
+  },
+  "accela:WOODINVILLE": {
+   "label": "Woodinville (Accela)",
+   "outcome": "ok",
+   "records": 9,
+   "detail": "9 records",
+   "elapsed_ms": 839
+  },
+  "accela:kingco": {
+   "label": "King County (Accela)",
+   "outcome": "ok",
+   "records": 10,
+   "detail": "10 records; non-fatal: showing first 10 matches — narrow the search",
+   "elapsed_ms": 595,
+   "changed_from": "empty"
+  },
+  "smartgov:normandy park": {
+   "label": "Normandy Park (SmartGov)",
+   "outcome": "ok",
+   "records": 10,
+   "detail": "10 records",
+   "elapsed_ms": 620,
+   "changed_from": "error"
+  },
+  "smartgov:carnation": {
+   "label": "Carnation (SmartGov)",
+   "outcome": "ok",
+   "records": 2,
+   "detail": "2 records",
+   "elapsed_ms": 549,
+   "changed_from": "error"
+  },
+  "lni": {
+   "label": "WA State L&I (electrical)",
+   "outcome": "ok",
+   "records": 12,
+   "detail": "12 records",
+   "elapsed_ms": 2600
+  },
+  "mbp:auburn": {
+   "label": "Auburn (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 568
+  },
+  "mbp:bellevue": {
+   "label": "Bellevue (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 2733
+  },
+  "mbp:bothell": {
+   "label": "Bothell (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 514
+  },
+  "mbp:burien": {
+   "label": "Burien (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 829
+  },
+  "mbp:edmonds": {
+   "label": "Edmonds (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 643
+  },
+  "mbp:federal way": {
+   "label": "Federal Way (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 601
+  },
+  "mbp:issaquah": {
+   "label": "Issaquah (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 539
+  },
+  "mbp:kenmore": {
+   "label": "Kenmore (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 605
+  },
+  "mbp:king county": {
+   "label": "King County (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 508
+  },
+  "mbp:kirkland": {
+   "label": "Kirkland (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 676
+  },
+  "mbp:mercer island": {
+   "label": "Mercer Island (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 860
+  },
+  "mbp:mill creek": {
+   "label": "Mill Creek (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 605
+  },
+  "mbp:newcastle": {
+   "label": "Newcastle (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 585
+  },
+  "mbp:sammamish": {
+   "label": "Sammamish (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 583
+  },
+  "mbp:snoqualmie": {
+   "label": "Snoqualmie (MyBuildingPermit)",
+   "outcome": "ok",
+   "records": 1,
+   "detail": "1 records",
+   "elapsed_ms": 961
+  }
+ }
+}

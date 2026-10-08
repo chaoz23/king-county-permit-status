@@ -90,48 +90,50 @@ Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --wri
 
 **Legend** — ✅ retrievable · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated) · 🔴 portal link only
 
-| City | Status | Source | Building | Electrical | Mech/Plumb | Land Use |
-|---|---|---|---|---|---|---|
-| Algona | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Auburn | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Beaux Arts Village | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ | ✅ | ✅ |
-| Black Diamond | 🟢 Live | Black Diamond (via King County) | ✅ | ➖ L&I | ✅ | ✅ |
-| Bothell | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Burien | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ |
-| Carnation | 🟢 Live | Carnation (SmartGov) | ✅ | ➖ L&I | ✅ | ✅ |
-| Clyde Hill | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Covington | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Des Moines | 🔴 Fallback | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
-| Duvall | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Enumclaw | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Federal Way | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ |
-| Hunts Point | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Issaquah | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Kenmore | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Kent | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Kirkland | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ |
-| Lake Forest Park | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Maple Valley | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Medina | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Mercer Island | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ |
-| Milton | 🔴 Fallback | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
-| Newcastle | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Normandy Park | 🟢 Live | Normandy Park (SmartGov) | ✅ | ✅ | ✅ | ✅ |
-| North Bend | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Pacific | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Redmond | 🟢 Live | Redmond (EnerGov Civic Access) | ✅ | ✅ | ✅ | ✅ |
-| Renton | 🟢 Live | Renton (EnerGov) | ✅ | ✅ | ✅ | ✅ |
-| Sammamish | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ |
-| SeaTac | 🔴 Fallback | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
-| Seattle | 🟢 Live | Seattle (SDCI Open Data) | ✅ | ✅ | ✅ | ✅ |
-| Shoreline | 🟢 Live | Shoreline (eTRAKiT) | ✅ | ➖ L&I | ✅ | ✅ |
-| Skykomish | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| Snoqualmie | 🟢 Live | MyBuildingPermit | ✅ | ➖ L&I | ✅ | ✅ |
-| Tukwila | 🔴 Fallback | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
-| Woodinville | 🟢 Live | Woodinville (Accela) | ✅ | ➖ L&I | ✅ | ✅ |
-| Yarrow Point | 🟡 Partial | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
-| _King County (unincorp.)_ | 🟢 Live | MyBuildingPermit (King County) | ✅ | ➖ L&I | ✅ | ✅ |
+**Health** = last weekly live probe of the city's source (`scripts/source_health.py`, 2026-10-08): ✅ answered with records · ⚪ answered, zero rows for a known-good query · ⛔ blocked (403) · ❌ down · ❔ unchecked · — no live source
+
+| City | Status | Source | Health | Building | Electrical | Mech/Plumb | Land Use |
+|---|---|---|---|---|---|---|---|
+| Algona | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Auburn | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Beaux Arts Village | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Black Diamond | 🟢 Live | Black Diamond (via King County) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Bothell | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Burien | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Carnation | 🟢 Live | Carnation (SmartGov) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Clyde Hill | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Covington | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Des Moines | 🔴 Fallback | — | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
+| Duvall | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Enumclaw | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Federal Way | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Hunts Point | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Issaquah | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Kenmore | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Kent | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Kirkland | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Lake Forest Park | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Maple Valley | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Medina | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Mercer Island | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Milton | 🔴 Fallback | — | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
+| Newcastle | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Normandy Park | 🟢 Live | Normandy Park (SmartGov) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| North Bend | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Pacific | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Redmond | 🟢 Live | Redmond (EnerGov Civic Access) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Renton | 🟢 Live | Renton (EnerGov) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sammamish | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
+| SeaTac | 🔴 Fallback | — | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
+| Seattle | 🟢 Live | Seattle (SDCI Open Data) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Shoreline | 🟢 Live | Shoreline (eTRAKiT) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Skykomish | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| Snoqualmie | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Tukwila | 🔴 Fallback | — | — | 🔴 | ⚠️ gap | 🔴 | 🔴 |
+| Woodinville | 🟢 Live | Woodinville (Accela) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
+| Yarrow Point | 🟡 Partial | — | — | 🔴 | ➖ L&I | 🔴 | 🔴 |
+| _King County (unincorp.)_ | 🟢 Live | MyBuildingPermit (King County) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
 
 **Coverage:** 20/39 live · 15/39 partial (L&I electrical only) · 4/39 fallback. Plus **King County (unincorporated)** for county-level permits (septic, critical areas, grading).
 

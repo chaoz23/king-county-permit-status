@@ -1244,3 +1244,63 @@ class ProvenanceFieldTests(unittest.TestCase):
             result = lookup.lookup("7222000353")
         self.assertEqual(result["trust_level"], "partial")
         self.assertEqual(result["parcel_id"], "king:7222000353")
+
+
+class NextStepTests(unittest.TestCase):
+    """#41 — structured follow-up alongside the prose separate_portal note."""
+
+    def _stub(self):
+        for p in (
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_seattle", return_value=([], [])),
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_fallback_city_gets_manual_portal_search(self):
+        self._stub()
+        result = lookup.lookup("220 4th Ave S, Kent, WA 98032")
+
+        ns = result["next_step"]
+        self.assertEqual(ns["kind"], "manual_portal_search")
+        self.assertEqual(ns["reason"], "no_feed")
+        self.assertEqual(ns["city"], "Kent")
+        self.assertEqual(ns["portal_url"], "https://permitstatus.kentwa.gov/")
+        self.assertEqual(ns["search_by"], ["address", "permit"])
+        self.assertEqual(ns["query_type"], "address")
+        self.assertIn("220 4th Ave S", ns["query"])
+        self.assertFalse(ns["covers_electrical"])    # Kent electrical is L&I, so already searched
+        self.assertIn("permitstatus.kentwa.gov", ns["hint"])
+        # prose note is unchanged and carries no leaked internal key
+        self.assertNotIn("reason", result["separate_portal"])
+
+    def test_login_gated_city_has_empty_search_by(self):
+        self._stub()
+        result = lookup.lookup("6200 Southcenter Blvd, Tukwila, WA")
+        ns = result["next_step"]
+        self.assertEqual(ns["search_by"], [])
+        self.assertIn("login-gated", ns["hint"])
+
+    def test_incomplete_seattle_search_is_source_incomplete(self):
+        self._stub()
+        with patch.object(lookup, "search_seattle", return_value=([], ["Building: offline"])):
+            result = lookup.lookup("600 4th Ave, Seattle, WA")
+        ns = result["next_step"]
+        self.assertEqual(ns["reason"], "source_incomplete")
+        self.assertEqual(ns["portal_url"], lookup.SEPARATE_PORTALS["seattle"])
+        self.assertTrue(ns["covers_electrical"])
+
+    def test_unknown_city_falls_back_to_city_site(self):
+        step = lookup.build_next_step("medina", "no_feed", "123 Main St", "address")
+        self.assertEqual(step["portal_url"], "https://www.medina-wa.gov/")
+        self.assertIsNone(step["vendor"])
+
+    def test_live_city_has_no_next_step(self):
+        self._stub()
+        with patch.object(lookup, "search_energov", return_value=[]), \
+             patch.object(lookup, "_geocode_parcel", return_value="7222000353"):
+            result = lookup.lookup("1817 Morris Ave S, Renton, WA")
+        self.assertNotIn("next_step", result)

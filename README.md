@@ -58,7 +58,8 @@ portal because a bare parcel number does not identify its city jurisdiction.
 | `permit_count` | Number of unique permits found |
 | `permits` | Array sorted newest `applied_date` first |
 | `searched` | Which jurisdictions were searched |
-| `separate_portal` | If the city has an unsupported portal: city name + URL |
+| `separate_portal` | If the city has an unsupported portal: city name + URL + prose note |
+| `next_step` | Structured twin of `separate_portal` for agents: `kind: manual_portal_search`, `reason` (`no_feed` / `electrical_only` / `parcel_resolution_failed` / `source_incomplete`), `portal_url` (the portal's actual search page when known — PermitTrax, LAMA, OpenGov, Kent), `vendor`, `search_by` (inputs that page accepts; empty when login-gated), `query`, `query_type`, `covers_electrical`, `hint` |
 | `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
 | `trust_level` | `live` (every applicable source answered), `partial` (a source errored or a portal needs manual follow-up), `fallback` (nothing searchable) |
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |

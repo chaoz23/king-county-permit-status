@@ -9,6 +9,7 @@ python3 lookup.py "<address, parcel number, or permit number>"
 Read the `action` field:
 - `found` → show the `permits` list (sorted newest-first), highlight any with status like "Expiration Notice" or "Corrections Required"
 - `none` → tell the user no permits were found; if `separate_portal` is present, direct them to that city's portal
+- whenever `next_step` is present (any action), it is the machine-actionable version of that note: `portal_url` is the portal's search page, `search_by` lists what it accepts, `query` is what to enter — use it rather than guessing a URL
 - `refine` → connection issue, suggest retrying
 
 The tool auto-detects input type (address vs parcel number vs permit number) and searches King County + the relevant city jurisdiction. For cities not on MyBuildingPermit (Seattle, Renton, Kent, etc.), it flags their separate portal URL.

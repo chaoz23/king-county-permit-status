@@ -79,6 +79,67 @@ SEPARATE_PORTALS = {
     "yarrow point": "https://yarrowpointwa.gov/",
 }
 
+# Where a human (or a browsing agent) can actually run the search for cities we
+# can't query over plain HTTP yet. Captured during portal recon (issues #18,
+# #21–#24); falls back to the city's site in SEPARATE_PORTALS. search_by lists
+# the inputs the portal's own search form accepts.
+MANUAL_PORTALS = {
+    "kent": {"vendor": "Kent permit status portal",
+             "search_url": "https://permitstatus.kentwa.gov/",
+             "search_by": ["address", "permit"]},
+    "seatac": {"vendor": "LAMA",
+               "search_url": "https://lama.seatacwa.gov/Search.aspx",
+               "search_by": ["address", "permit", "parcel"]},
+    "des moines": {"vendor": "PermitTrax Citizens Connect",
+                   "search_url": "https://desmoines-wa.permittrax.com/citizen/Home/DESMON_L/PBPW",
+                   "search_by": ["address", "permit"]},
+    "covington": {"vendor": "PermitTrax Citizens Connect",
+                  "search_url": "https://covington-wa.permittrax.com/citizen/Home/COVWA_L/PERMIT",
+                  "search_by": ["address", "permit"]},
+    "milton": {"vendor": "PermitTrax Citizens Connect",
+               "search_url": "https://milton_wa.permittrax.com/citizen/Home/MILTON_L/PERMIT",
+               "search_by": ["address", "permit"]},
+    "enumclaw": {"vendor": "PermitTrax Citizens Connect",
+                 "search_url": "https://enumclaw_wa.permittrax.com/",
+                 "search_by": ["address", "permit"]},
+    "north bend": {"vendor": "PermitTrax Citizens Connect",
+                   "search_url": "https://northbend-wa.permittrax.com/",
+                   "search_by": ["address", "permit"]},
+    "maple valley": {"vendor": "OpenGov ViewPoint",
+                     "search_url": "https://maplevalleywa.viewpointcloud.com/",
+                     "search_by": ["address", "permit"]},
+    "tukwila": {"vendor": "ASP.gov (results require login)",
+                "search_url": "https://www.tukwilawa.gov/departments/community-development/",
+                "search_by": []},
+}
+
+
+def build_next_step(city: str, reason: str, query: str, input_type: str,
+                    portal: str | None = None, electrical: bool = False) -> dict:
+    """Structured follow-up for an agent when a city can't be searched here.
+
+    reason: no_feed | electrical_only | parcel_resolution_failed | source_incomplete
+    """
+    key = (city or "").lower()
+    manual = MANUAL_PORTALS.get(key, {})
+    search_url = manual.get("search_url") or portal or SEPARATE_PORTALS.get(key)
+    search_by = manual.get("search_by", ["address", "permit"])
+    step = {
+        "kind": "manual_portal_search",
+        "reason": reason,
+        "city": city.title() if city else None,
+        "portal_url": search_url,
+        "vendor": manual.get("vendor"),
+        "search_by": search_by,
+        "query": query,
+        "query_type": input_type,
+        "covers_electrical": electrical,
+        "hint": (f"Search {search_url} by {' or '.join(search_by)} for {query!r}."
+                 if search_by else
+                 f"{city.title()} results are login-gated; contact the city at {search_url}."),
+    }
+    return step
+
 
 def parse_date(ms_date: str | None) -> str | None:
     """Parse .NET /Date(milliseconds)/ to YYYY-MM-DD."""
@@ -1412,6 +1473,7 @@ def lookup(raw_input: str) -> dict:
                         f"Could not resolve this address to a parcel for the "
                         f"{city.title()} search — check the city portal directly."
                     ),
+                    "reason": "parcel_resolution_failed",
                 }
         elif (city and city in SEPARATE_PORTALS
               and city not in ("seattle", "shoreline")
@@ -1422,6 +1484,7 @@ def lookup(raw_input: str) -> dict:
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
                 "note": f"{city.title()} has its own permit system — city-issued permits won't appear here.",
+                "reason": "no_feed",
             }
 
     # Bellevue's former EnerGov hostname is retired. Its official Open Data
@@ -1449,6 +1512,7 @@ def lookup(raw_input: str) -> dict:
                     "check the Seattle Services Portal directly."
                 ),
                 "electrical": True,
+                "reason": "source_incomplete",
             }
 
     # Shoreline eTRAKiT (CentralSquare) — building, mechanical/plumbing, and
@@ -1517,6 +1581,7 @@ def lookup(raw_input: str) -> dict:
             "city": city.title(),
             "portal": portal,
             "note": f"{city.title()} handles its own electrical permits — check their portal, not L&I.",
+            "reason": "electrical_only",
         }
         if separate_portal_note:
             separate_portal_note["note"] += f" {city.title()} also handles electrical permits."
@@ -1581,8 +1646,14 @@ def lookup(raw_input: str) -> dict:
         }
 
     if separate_portal_note:
+        reason = separate_portal_note.pop("reason", "no_feed")
         result["separate_portal"] = separate_portal_note
         result["message"] += f" Note: {separate_portal_note['note']}"
+        # Machine-actionable twin of the prose note (#41)
+        result["next_step"] = build_next_step(
+            separate_portal_note["city"], reason, value, input_type,
+            portal=separate_portal_note.get("portal"),
+            electrical=bool(separate_portal_note.get("electrical")))
 
     if errors:
         result["errors"] = errors
@@ -1688,6 +1759,22 @@ TOOL_SCHEMA = {
             "separate_portal": {
                 "type": "object",
                 "description": "Present when manual follow-up at a city portal is needed, including when a live city search is incomplete. Includes city, portal URL, note.",
+            },
+            "next_step": {
+                "type": "object",
+                "description": "Structured twin of separate_portal: the exact follow-up an agent can take. kind=manual_portal_search; reason in no_feed|electrical_only|parcel_resolution_failed|source_incomplete; portal_url (the portal's search page when known); vendor; search_by (inputs that page accepts, empty when login-gated); query/query_type to re-use; covers_electrical; hint.",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["manual_portal_search"]},
+                    "reason": {"type": "string", "enum": ["no_feed", "electrical_only", "parcel_resolution_failed", "source_incomplete"]},
+                    "city": {"type": ["string", "null"]},
+                    "portal_url": {"type": ["string", "null"]},
+                    "vendor": {"type": ["string", "null"]},
+                    "search_by": {"type": "array", "items": {"type": "string", "enum": ["address", "permit", "parcel"]}},
+                    "query": {"type": "string"},
+                    "query_type": {"type": "string", "enum": ["address", "parcel", "permit"]},
+                    "covers_electrical": {"type": "boolean"},
+                    "hint": {"type": "string"},
+                },
             },
             "errors": {
                 "type": "array",

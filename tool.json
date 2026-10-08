@@ -143,6 +143,73 @@
         "type": "object",
         "description": "Present when manual follow-up at a city portal is needed, including when a live city search is incomplete. Includes city, portal URL, note."
       },
+      "next_step": {
+        "type": "object",
+        "description": "Structured twin of separate_portal: the exact follow-up an agent can take. kind=manual_portal_search; reason in no_feed|electrical_only|parcel_resolution_failed|source_incomplete; portal_url (the portal's search page when known); vendor; search_by (inputs that page accepts, empty when login-gated); query/query_type to re-use; covers_electrical; hint.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "manual_portal_search"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_feed",
+              "electrical_only",
+              "parcel_resolution_failed",
+              "source_incomplete"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "portal_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "search_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "address",
+                "permit",
+                "parcel"
+              ]
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "query_type": {
+            "type": "string",
+            "enum": [
+              "address",
+              "parcel",
+              "permit"
+            ]
+          },
+          "covers_electrical": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        }
+      },
       "errors": {
         "type": "array",
         "items": {

@@ -40,9 +40,15 @@ portal because a bare parcel number does not identify its city jurisdiction.
       "issued_date": "2026-01-28",
       "finaled_date": null,
       "expires_date": "2027-07-27",
-      "portal": "https://permitting.rentonwa.gov"
+      "portal": "https://permitting.rentonwa.gov",
+      "record_url": null,
+      "is_open": true
     }
-  ]
+  ],
+  "trust_level": "live",
+  "fetched_at": "2026-10-08T19:02:11+00:00",
+  "parcel_id": "king:7222000353",
+  "cite_as": "King County Permit Status (github.com/chaoz23/king-county-permit-status), queried 2026-10-08 via Renton (EnerGov)"
 }
 ```
 
@@ -54,8 +60,12 @@ portal because a bare parcel number does not identify its city jurisdiction.
 | `searched` | Which jurisdictions were searched |
 | `separate_portal` | If the city has an unsupported portal: city name + URL |
 | `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
+| `trust_level` | `live` (every applicable source answered), `partial` (a source errored or a portal needs manual follow-up), `fallback` (nothing searchable) |
+| `fetched_at` | UTC timestamp of the query — records are live, never cached |
+| `parcel_id` | County-namespaced parcel, e.g. `king:7222000353`, when the query was or resolved to a parcel |
+| `cite_as` | One-line attribution string for generated text |
 
-Per permit: `permit_number`, `type`, `status`, `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`.
+Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vendor status vocabularies; `null` when the source exposes no status), `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`, `record_url` (the specific record's URL when the source exposes one).
 
 ## Multi-jurisdiction coverage
 
@@ -125,6 +135,8 @@ Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --wri
 **Coverage:** 20/39 live · 15/39 partial (L&I electrical only) · 4/39 fallback. Plus **King County (unincorporated)** for county-level permits (septic, critical areas, grading).
 
 > ⚠️ **Electrical gaps:** Des Moines, Milton, SeaTac, Tukwila. These cities self-run their electrical program (so L&I is skipped) and are not on MyBuildingPermit, leaving their electrical permits in no feed we search. MBP cities that self-run electrical (Burien, Federal Way, Kirkland, Mercer Island, Sammamish) are **not** gaps — verified 2026-07-15 that MBP carries their electrical history. Closing the remaining gaps is tracked in the coverage epic.
+
+> ℹ️ **Split-county cities:** Milton (mostly Pierce), Pacific and Auburn straddle the King/Pierce line. Each city issues its own permits for the whole city, so the row above applies to both sides; only *county-level* permits (septic, critical areas) differ — Pierce County's portal is not searched. Parcel ids are county-namespaced (`king:…`) for this reason.
 
 <!-- END SCORECARD -->
 

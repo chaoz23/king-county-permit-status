@@ -31,7 +31,7 @@ import urllib.parse
 import http.cookiejar
 from html import unescape as html_unescape
 from calendar import monthrange
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from city_utils import detect_city_name
 
@@ -63,7 +63,7 @@ SEPARATE_PORTALS = {
     "seattle": "https://cosaccela.seattle.gov/portal/",
     "renton": "https://permitting.rentonwa.gov/",
     "kent": "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/check-your-permit-status",
-    "redmond": "https://permits.redmond.gov/",
+    "redmond": "https://cityofredmondwa-energovweb.tylerhost.net/apps/selfservice#/home",
     "shoreline": "https://permits.shorelinewa.gov/",
     "tukwila": "https://www.tukwilawa.gov/departments/community-development/",
     "seatac": "https://www.seatacwa.gov/our-city/community-development",
@@ -1183,6 +1183,56 @@ def search_smartgov(city: str, input_type: str,
     return _parse_smartgov(body, city, base), []
 
 
+CITE_AS = "King County Permit Status (github.com/chaoz23/king-county-permit-status)"
+
+# Status words that mean a permit is no longer active, across every vendor
+# vocabulary we normalize (MBP, EnerGov, Accela, SmartGov, Socrata, ArcGIS, L&I).
+_CLOSED_STATUS = re.compile(
+    r"final|complet|closed|expired|withdrawn|cancel|void|denied|revoked|"
+    r"abandon|inactive|rejected", re.I)
+
+
+def is_open_status(status: str | None, finaled_date: str | None = None) -> bool | None:
+    """Normalize a vendor status string to open/closed. None when unknown
+    (eTRAKiT exports carry no status)."""
+    if finaled_date:
+        return False
+    if not status or not status.strip():
+        return None
+    if re.search(r"incomplete|expiration notice", status, re.I):
+        return True     # "Application Incomplete" / MBP "Expiration Notice" are still live
+    return not _CLOSED_STATUS.search(status)
+
+
+def record_url(permit: dict) -> str | None:
+    """The per-record URL when `portal` points at this permit rather than a
+    search page (Seattle, Bellevue, SmartGov detail GUIDs); else None."""
+    url = permit.get("portal") or ""
+    if not url:
+        return None
+    # MBP encodes "26 120953 FA" as "26%20120953%20FA" — compare alphanumerics only
+    squash = lambda s: re.sub(r"[^a-z0-9]", "", urllib.parse.unquote(s).lower())
+    number = squash(permit.get("permit_number") or "")
+    if "/Detail/" in url or (number and number in squash(url)):
+        return url
+    return None
+
+
+def parcel_id(pin: str | None) -> str | None:
+    """County-namespaced parcel id (`king:7222000353`), so parcels stay
+    unambiguous once Pierce-straddling cities (Milton, Pacific, Auburn) are in
+    the mix."""
+    digits = re.sub(r"\D", "", pin or "")
+    return f"king:{digits}" if len(digits) == 10 else None
+
+
+def enrich_permit(permit: dict) -> dict:
+    """Add the provenance/convenience fields agents act on (additive)."""
+    permit["is_open"] = is_open_status(permit.get("status"), permit.get("finaled_date"))
+    permit["record_url"] = record_url(permit)
+    return permit
+
+
 def lookup(raw_input: str) -> dict:
     """Core lookup. Returns unified result for human + agent."""
     if not raw_input.strip():
@@ -1197,6 +1247,7 @@ def lookup(raw_input: str) -> dict:
 
     input_type, value = detect_input_type(raw_input)
     city = detect_city(raw_input)
+    resolved_parcel = value if input_type == "parcel" else None
 
     opener = None
     token = None
@@ -1348,6 +1399,7 @@ def lookup(raw_input: str) -> dict:
         if city and city in ENERGOV_PORTALS:
             parcel = _geocode_parcel(value)
             if parcel:
+                resolved_parcel = parcel
                 eg = search_energov(city, parcel, exact=False)
                 all_permits.extend(eg)
                 searched_jurisdictions.append(f"{city.title()} (EnerGov, parcel {parcel})")
@@ -1494,6 +1546,8 @@ def lookup(raw_input: str) -> dict:
 
     # Sort by applied date (newest first)
     unique.sort(key=lambda p: p["applied_date"] or "", reverse=True)
+    for p in unique:
+        enrich_permit(p)
 
     if unique:
         result = {
@@ -1532,6 +1586,21 @@ def lookup(raw_input: str) -> dict:
 
     if errors:
         result["errors"] = errors
+
+    # Provenance envelope: every record above came from a live source query at
+    # fetched_at. trust_level tells an agent how complete that picture is.
+    if not searched_jurisdictions:
+        trust = "fallback"      # nothing searchable; separate_portal is the lead
+    elif errors or separate_portal_note:
+        trust = "partial"
+    else:
+        trust = "live"
+    result["trust_level"] = trust
+    result["fetched_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    result["parcel_id"] = parcel_id(resolved_parcel)
+    result["cite_as"] = (f"{CITE_AS}, queried {result['fetched_at'][:10]}"
+                         + (f" via {', '.join(dict.fromkeys(searched_jurisdictions))}"
+                            if searched_jurisdictions else ""))
 
     return result
 
@@ -1598,9 +1667,19 @@ TOOL_SCHEMA = {
                         "finaled_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
                         "expires_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
                         "portal": {"type": ["string", "null"], "description": "Source permit or portal URL when available"},
+                        "record_url": {"type": ["string", "null"], "description": "URL of this specific permit record when the source exposes one; null when portal is only a search page"},
+                        "is_open": {"type": ["boolean", "null"], "description": "Normalized across vendor status vocabularies: false when finaled/closed/expired/withdrawn/etc., null when the source exposes no status"},
                     },
                 },
             },
+            "trust_level": {
+                "type": "string",
+                "enum": ["live", "partial", "fallback"],
+                "description": "live — every applicable source answered; partial — some source errored or a city portal needs manual follow-up; fallback — nothing searchable, use separate_portal",
+            },
+            "fetched_at": {"type": "string", "description": "UTC ISO-8601 timestamp of this query; records are live, not cached"},
+            "parcel_id": {"type": ["string", "null"], "description": "County-namespaced parcel id, e.g. 'king:7222000353', when the query was or resolved to a parcel"},
+            "cite_as": {"type": "string", "description": "One-line attribution string for generated text"},
             "searched": {
                 "type": "array",
                 "items": {"type": "string"},

@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,7 +11,8 @@ import route
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROUTING_DATA = {
-    "last_verified": "2026-07-01",
+    # "recent" must stay recent: a fixed date turns this fixture into a time bomb
+    "last_verified": datetime.now().strftime("%Y-%m-%d"),
     "cities_on_mbp": ["bellevue"],
     "cities_own_electrical": ["renton"],
     "city_portals": {

@@ -126,7 +126,72 @@
           "string",
           "null"
         ],
-        "description": "County-namespaced parcel id, e.g. 'king:7222000353', when the query was or resolved to a parcel"
+        "description": "County-namespaced parcel id, e.g. 'king:7222000353' or 'pierce:5985002900', when the query was or resolved to a parcel"
+      },
+      "jurisdiction": {
+        "type": "object",
+        "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon \u2014 authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), null (none). unincorporated=true means county permits only.",
+        "properties": {
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "city-limits",
+              "geocoder-city",
+              "address-text",
+              null
+            ]
+          },
+          "county": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unincorporated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "address_resolution": {
+        "type": "object",
+        "description": "How well the geocoder matched an address query. match_type: point (exact address point), interpolated (number placed along the street; no parcel), street (street only). partial_match is true for anything but point; street_number_snapped when the matched house number differs from the one given.",
+        "properties": {
+          "matched_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "score": {
+            "type": "number"
+          },
+          "match_type": {
+            "type": "string",
+            "enum": [
+              "point",
+              "interpolated",
+              "street"
+            ]
+          },
+          "partial_match": {
+            "type": "boolean"
+          },
+          "street_number_snapped": {
+            "type": "boolean"
+          }
+        }
       },
       "cite_as": {
         "type": "string",

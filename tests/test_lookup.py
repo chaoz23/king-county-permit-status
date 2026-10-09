@@ -11,6 +11,20 @@ from unittest.mock import call, patch
 import lookup
 
 
+# Routing tests exercise text-city detection; keep the geocoder off the network
+# and neutral by default. Tests that care patch resolve_location themselves.
+_REAL_RESOLVE = lookup.resolve_location   # for tests of the resolver itself
+_GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
+
+
+def setUpModule():
+    _GEO_PATCH.start()
+
+
+def tearDownModule():
+    _GEO_PATCH.stop()
+
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -1304,3 +1318,192 @@ class NextStepTests(unittest.TestCase):
              patch.object(lookup, "_geocode_parcel", return_value="7222000353"):
             result = lookup.lookup("1817 Morris Ave S, Renton, WA")
         self.assertNotIn("next_step", result)
+
+
+class ResolveLocationTests(unittest.TestCase):
+    """#39 — jurisdiction from the city-limits polygon, not the mailing city."""
+
+    def _geo(self, score=100, addr_type="PointAddress", pin="7222000353",
+             county="KING", city="RENTON", addnum="1817", loc=True):
+        return {"candidates": [{
+            "address": "1817 MORRIS AVE S, Renton, WA, 98055", "score": score,
+            "location": {"x": 1299539.4, "y": 172002.5} if loc else {},
+            "attributes": {"Addr_type": addr_type, "PIN": pin, "Subregion": county,
+                           "City": city, "AddNum": addnum},
+        }]}
+
+    def _poly(self, name="Renton", uninc=0):
+        return {"features": [{"attributes": {"NAME": name, "UNINC": uninc}}]}
+
+    def test_point_match_inside_city_polygon(self):
+        with patch.object(lookup, "_arcgis_json", side_effect=[self._geo(), self._poly()]):
+            loc = _REAL_RESOLVE("1817 Morris Ave S, Renton WA")
+        self.assertEqual(loc["jurisdiction"], "Renton")
+        self.assertEqual(loc["jurisdiction_basis"], "city-limits")
+        self.assertFalse(loc["unincorporated"])
+        self.assertEqual(loc["parcel_id"], "king:7222000353")
+        self.assertEqual(loc["match_type"], "point")
+        self.assertFalse(loc["partial_match"])
+        self.assertFalse(loc["street_number_snapped"])
+
+    def test_unincorporated_point_and_snapped_number(self):
+        with patch.object(lookup, "_arcgis_json",
+                          side_effect=[self._geo(city="", addnum="1815"), self._poly("King County", 1)]):
+            loc = _REAL_RESOLVE("1817 Morris Ave S, Renton WA")
+        self.assertTrue(loc["unincorporated"])
+        self.assertTrue(loc["street_number_snapped"])
+        self.assertIsNone(lookup.jurisdiction_city_key(loc))
+
+    def test_pierce_side_address_is_namespaced(self):
+        with patch.object(lookup, "_arcgis_json",
+                          side_effect=[self._geo(pin="5985002900", county="PIERCE", city="MILTON"),
+                                       self._poly("Milton")]):
+            loc = _REAL_RESOLVE("1000 Milton Way, Milton WA")
+        self.assertEqual(loc["parcel_id"], "pierce:5985002900")
+        self.assertEqual(lookup.jurisdiction_city_key(loc), "milton")
+
+    def test_interpolated_match_has_no_parcel_but_still_routes(self):
+        with patch.object(lookup, "_arcgis_json",
+                          side_effect=[self._geo(addr_type="StreetAddress", pin=""), self._poly()]):
+            loc = _REAL_RESOLVE("1819 Morris Ave S, Renton WA")
+        self.assertEqual(loc["match_type"], "interpolated")
+        self.assertTrue(loc["partial_match"])
+        self.assertIsNone(loc["parcel_id"])
+        self.assertEqual(loc["jurisdiction"], "Renton")
+
+    def test_exact_point_accepted_at_lower_score_but_locality_rejected(self):
+        with patch.object(lookup, "_arcgis_json", side_effect=[self._geo(score=75), self._poly()]):
+            self.assertIsNotNone(_REAL_RESOLVE("17630 Vashon Hwy SW, Vashon WA"))
+        with patch.object(lookup, "_arcgis_json", return_value=self._geo(score=72, addr_type="Locality")):
+            self.assertIsNone(_REAL_RESOLVE("99999 Nowhere St, Renton WA"))
+        with patch.object(lookup, "_arcgis_json", return_value=self._geo(score=79, addr_type="StreetAddress")):
+            self.assertIsNone(_REAL_RESOLVE("x"))
+
+    def test_polygon_failure_falls_back_to_geocoder_city(self):
+        with patch.object(lookup, "_arcgis_json", side_effect=[self._geo(), Exception("down")]):
+            loc = _REAL_RESOLVE("1817 Morris Ave S, Renton WA")
+        self.assertEqual(loc["jurisdiction"], "Renton")
+        self.assertEqual(loc["jurisdiction_basis"], "geocoder-city")
+
+    def test_beaux_arts_name_maps_to_routing_key(self):
+        self.assertEqual(lookup.jurisdiction_city_key(
+            {"jurisdiction": "Beaux Arts", "unincorporated": False}), "beaux arts village")
+
+    def test_geocoder_error_returns_none(self):
+        with patch.object(lookup, "_arcgis_json", side_effect=Exception("timeout")):
+            self.assertIsNone(_REAL_RESOLVE("1817 Morris Ave S, Renton WA"))
+
+
+class PolygonRoutingTests(unittest.TestCase):
+    """lookup() prefers the polygon jurisdiction over the mailing city."""
+
+    def _stub(self):
+        for p in (
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_seattle", return_value=([], [])),
+            patch.object(lookup, "search_energov", return_value=[]),
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _loc(self, jurisdiction, uninc=False, county="king", pin="9825700835"):
+        return {"matched_address": "x", "score": 100, "match_type": "point",
+                "partial_match": False, "street_number_snapped": False,
+                "county": county, "parcel_id": f"{county}:{pin}", "pin": pin,
+                "geocoder_city": jurisdiction, "jurisdiction": jurisdiction,
+                "jurisdiction_basis": "city-limits", "unincorporated": uninc}
+
+    def test_kent_postal_address_in_unincorporated_kc_searches_county_only(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=self._loc("King County", uninc=True)), \
+             patch.object(lookup, "search_permits", return_value=[]) as mbp:
+            result = lookup.lookup("12345 SE 208th St, Kent, WA")
+        self.assertEqual([c.args[2] for c in mbp.call_args_list], ["20"])   # KC JurisId only
+        self.assertEqual(result["jurisdiction"], {"city": None, "basis": "city-limits",
+                                                  "county": "king", "unincorporated": True})
+        self.assertNotIn("separate_portal", result)                        # not routed to Kent
+        self.assertEqual(result["parcel_id"], "king:9825700835")
+
+    def test_missing_text_city_is_filled_from_polygon(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=self._loc("Bellevue")), \
+             patch.object(lookup, "search_permits", return_value=[]) as mbp:
+            result = lookup.lookup("919 109th Ave NE")
+        self.assertEqual(sorted(c.args[2] for c in mbp.call_args_list), ["1", "20"])  # KC + Bellevue, not all 15
+        self.assertEqual(result["jurisdiction"]["city"], "Bellevue")
+        self.assertEqual(result["jurisdiction"]["basis"], "city-limits")
+
+    def test_polygon_overrides_wrong_mailing_city(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=self._loc("Renton", pin="7222000353")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "search_energov", return_value=[]) as eg:
+            result = lookup.lookup("1817 Morris Ave S, Kent, WA")
+        eg.assert_called_once_with("renton", "7222000353", exact=False)   # parcel reused, no 2nd geocode
+        self.assertEqual(result["jurisdiction"]["city"], "Renton")
+        self.assertEqual(result["address_resolution"]["match_type"], "point")
+
+    def test_no_geocoder_answer_keeps_text_routing(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=None), \
+             patch.object(lookup, "search_permits", return_value=[]):
+            result = lookup.lookup("220 4th Ave S, Kent, WA")
+        self.assertEqual(result["jurisdiction"], {"city": "Kent", "basis": "address-text",
+                                                  "county": None, "unincorporated": None})
+        self.assertNotIn("address_resolution", result)
+
+
+class CitylessGeocodeTests(unittest.TestCase):
+    """Addresses with no city/state get a ', WA' retry; ambiguity falls back."""
+
+    def _cand(self, city, county="KING", pin="6600750005", score=100, addr_type="PointAddress"):
+        return {"address": f"x, {city}", "score": score,
+                "location": {"x": 1.0, "y": 2.0},
+                "attributes": {"Addr_type": addr_type, "PIN": pin, "Subregion": county,
+                               "City": city, "AddNum": "919"}}
+
+    def test_retries_with_wa_and_takes_unique_point(self):
+        calls = []
+        def fake(url, params, timeout=10):
+            calls.append(params.get("SingleLine"))
+            if url == lookup.KC_CITY_LIMITS_URL:
+                return {"features": [{"attributes": {"NAME": "Bellevue", "UNINC": 0}}]}
+            if params["SingleLine"].endswith(", WA"):
+                return {"candidates": [self._cand("BELLEVUE"), self._cand("BELLEVUE", addr_type="Parcel")]}
+            return {"candidates": []}
+        with patch.object(lookup, "_arcgis_json", side_effect=fake):
+            loc = _REAL_RESOLVE("919 109th Ave NE")
+        self.assertEqual(calls[:2], ["919 109th Ave NE", "919 109th Ave NE, WA"])
+        self.assertEqual(loc["jurisdiction"], "Bellevue")
+        self.assertEqual(loc["parcel_id"], "king:6600750005")
+
+    def test_ambiguous_across_counties_prefers_king(self):
+        def fake(url, params, timeout=10):
+            if url == lookup.KC_CITY_LIMITS_URL:
+                return {"features": [{"attributes": {"NAME": "Kent", "UNINC": 0}}]}
+            if params["SingleLine"].endswith(", WA"):
+                return {"candidates": [self._cand("EDMONDS", "SNOHOMISH", "27032300406600"),
+                                       self._cand("KENT", "KING", "9825700835")]}
+            return {"candidates": []}
+        with patch.object(lookup, "_arcgis_json", side_effect=fake):
+            loc = _REAL_RESOLVE("220 4th Ave S")
+        self.assertEqual(loc["jurisdiction"], "Kent")
+
+    def test_ambiguous_within_king_returns_none(self):
+        def fake(url, params, timeout=10):
+            if params["SingleLine"].endswith(", WA"):
+                return {"candidates": [self._cand("KENT", pin="1"), self._cand("AUBURN", pin="2")]}
+            return {"candidates": []}
+        with patch.object(lookup, "_arcgis_json", side_effect=fake):
+            self.assertIsNone(_REAL_RESOLVE("100 Main St"))
+
+    def test_no_retry_when_region_present(self):
+        calls = []
+        def fake(url, params, timeout=10):
+            calls.append(params.get("SingleLine")); return {"candidates": []}
+        with patch.object(lookup, "_arcgis_json", side_effect=fake):
+            self.assertIsNone(_REAL_RESOLVE("100 Main St, Renton WA"))
+            self.assertIsNone(_REAL_RESOLVE("100 Main St 98055"))
+        self.assertEqual(len(calls), 2)

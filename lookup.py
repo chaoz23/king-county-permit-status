@@ -84,9 +84,17 @@ SEPARATE_PORTALS = {
 # #21–#24); falls back to the city's site in SEPARATE_PORTALS. search_by lists
 # the inputs the portal's own search form accepts.
 MANUAL_PORTALS = {
-    "kent": {"vendor": "Kent permit status portal",
-             "search_url": "https://permitstatus.kentwa.gov/",
-             "search_by": ["address", "permit"]},
+    # Kent has no public permit search at all (#24): permitstatus.kentwa.gov
+    # is an SSO site for your own applications; the public record is monthly
+    # XLSX permit logs. Indexing those is a separate project (see the issue).
+    "kent": {"vendor": "No public search — monthly XLSX permit logs + applicant SSO",
+             "search_url": "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/permit-logs",
+             "search_by": [],
+             "hint": ("Kent publishes permits only as monthly XLSX logs at "
+                      "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/permit-logs "
+                      "(pick the year folder, open the month, search the sheet for the "
+                      "address). Applicants can see their own permit status after signing in "
+                      "at https://permitstatus.kentwa.gov/.")},
     "des moines": {"vendor": "PermitTrax Citizens Connect",
                    "search_url": "https://desmoines-wa.permittrax.com/citizen/Home/DESMON_L/PBPW",
                    "search_by": ["address", "permit"]},
@@ -137,9 +145,10 @@ def build_next_step(city: str, reason: str, query: str, input_type: str,
         "query": query,
         "query_type": input_type,
         "covers_electrical": electrical,
-        "hint": (f"Search {search_url} by {' or '.join(search_by)} for {query!r}."
-                 if search_by else
-                 f"{city.title()} results are login-gated; contact the city at {search_url}."),
+        "hint": manual.get("hint") or (
+            f"Search {search_url} by {' or '.join(search_by)} for {query!r}."
+            if search_by else
+            f"{city.title()} results are login-gated; contact the city at {search_url}."),
     }
     return step
 

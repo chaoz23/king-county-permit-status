@@ -1,0 +1,13 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": [
+    "chaoz23"
+  ],
+  "license": "MIT",
+  "tools": [
+    {
+      "name": "king_county_permit_status",
+      "description": "Live building-permit history and status for any King County, WA address, parcel or permit number — 20 city systems, unincorporated King County, the Assessor's parcel index and WA L&I electrical, normalized to one schema with provenance (record_url, is_open, trust_level, next_step, cite_as). Read-only."
+    }
+  ]
+}

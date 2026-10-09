@@ -1,5 +1,231 @@
 {
- "checked_at": "2026-10-09T18:19:31+00:00",
+ "status_vocabulary": {
+  "ARCHIVED": {
+   "is_open": false,
+   "sources": [
+    "shoreline"
+   ]
+  },
+  "Awaiting Completeness Review": {
+   "is_open": true,
+   "sources": [
+    "smartgov:carnation"
+   ]
+  },
+  "CLOSED": {
+   "is_open": false,
+   "sources": [
+    "shoreline"
+   ]
+  },
+  "Cancel - Reinspect": {
+   "is_open": true,
+   "sources": [
+    "renton"
+   ]
+  },
+  "Canceled": {
+   "is_open": false,
+   "sources": [
+    "seattle",
+    "bellevue",
+    "accela:kingco"
+   ]
+  },
+  "Closed": {
+   "is_open": false,
+   "sources": [
+    "seattle",
+    "bellevue",
+    "accela:WOODINVILLE",
+    "accela:kingco",
+    "smartgov:normandy park",
+    "smartgov:carnation"
+   ]
+  },
+  "Complete": {
+   "is_open": false,
+   "sources": [
+    "renton"
+   ]
+  },
+  "Completed": {
+   "is_open": false,
+   "sources": [
+    "seattle"
+   ]
+  },
+  "Completeness Check": {
+   "is_open": true,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "Corrections Required": {
+   "is_open": true,
+   "sources": [
+    "seattle"
+   ]
+  },
+  "DESTROYED": {
+   "is_open": false,
+   "sources": [
+    "shoreline"
+   ]
+  },
+  "Decision Issued": {
+   "is_open": true,
+   "sources": [
+    "smartgov:normandy park"
+   ]
+  },
+  "Expired": {
+   "is_open": false,
+   "sources": [
+    "seattle",
+    "bellevue",
+    "redmond"
+   ]
+  },
+  "Fail": {
+   "is_open": true,
+   "sources": [
+    "renton"
+   ]
+  },
+  "Finaled": {
+   "is_open": false,
+   "sources": [
+    "redmond",
+    "accela:WOODINVILLE",
+    "smartgov:normandy park",
+    "lama:seatac"
+   ]
+  },
+  "ISSUED": {
+   "is_open": true,
+   "sources": [
+    "shoreline"
+   ]
+  },
+  "Inactive": {
+   "is_open": false,
+   "sources": [
+    "lni"
+   ]
+  },
+  "Inspections Complete": {
+   "is_open": false,
+   "sources": [
+    "lama:seatac"
+   ]
+  },
+  "Issued": {
+   "is_open": true,
+   "sources": [
+    "renton",
+    "seattle",
+    "bellevue",
+    "redmond",
+    "accela:WOODINVILLE",
+    "smartgov:normandy park"
+   ]
+  },
+  "Not Required": {
+   "is_open": false,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "On Hold": {
+   "is_open": true,
+   "sources": [
+    "renton"
+   ]
+  },
+  "Open": {
+   "is_open": true,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "Pass": {
+   "is_open": true,
+   "sources": [
+    "renton"
+   ]
+  },
+  "Payment Pending": {
+   "is_open": true,
+   "sources": [
+    "smartgov:normandy park"
+   ]
+  },
+  "Pending": {
+   "is_open": true,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "Permit Completed": {
+   "is_open": false,
+   "sources": [
+    "accela:kingco"
+   ]
+  },
+  "Permit Expired": {
+   "is_open": false,
+   "sources": [
+    "accela:kingco",
+    "lama:seatac"
+   ]
+  },
+  "Permit Finalized": {
+   "is_open": false,
+   "sources": [
+    "lama:seatac"
+   ]
+  },
+  "Permit Issued": {
+   "is_open": true,
+   "sources": [
+    "lama:seatac"
+   ]
+  },
+  "RECORDS ARCHIVED": {
+   "is_open": false,
+   "sources": [
+    "shoreline"
+   ]
+  },
+  "Ready to Issue": {
+   "is_open": true,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "Under Review": {
+   "is_open": true,
+   "sources": [
+    "smartgov:normandy park"
+   ]
+  },
+  "Violations": {
+   "is_open": true,
+   "sources": [
+    "bellevue"
+   ]
+  },
+  "Withdrawn": {
+   "is_open": false,
+   "sources": [
+    "renton",
+    "seattle",
+    "redmond"
+   ]
+  }
+ },
+ "checked_at": "2026-10-09T18:39:34+00:00",
  "summary": {
   "ok": 27
  },
@@ -9,189 +235,443 @@
    "outcome": "ok",
    "records": 24,
    "detail": "24 records",
-   "elapsed_ms": 1628
+   "elapsed_ms": 2535,
+   "statuses": {
+    "Pass": {
+     "n": 9,
+     "is_open": true
+    },
+    "Fail": {
+     "n": 4,
+     "is_open": true
+    },
+    "Cancel - Reinspect": {
+     "n": 4,
+     "is_open": true
+    },
+    "Issued": {
+     "n": 3,
+     "is_open": true
+    },
+    "Complete": {
+     "n": 2,
+     "is_open": false
+    },
+    "On Hold": {
+     "n": 1,
+     "is_open": true
+    },
+    "Withdrawn": {
+     "n": 1,
+     "is_open": false
+    }
+   }
   },
   "seattle": {
    "label": "Seattle (SDCI Open Data)",
    "outcome": "ok",
    "records": 131,
    "detail": "131 records",
-   "elapsed_ms": 2418
+   "elapsed_ms": 2492,
+   "statuses": {
+    "Completed": {
+     "n": 105,
+     "is_open": false
+    },
+    "Issued": {
+     "n": 8,
+     "is_open": true
+    },
+    "Withdrawn": {
+     "n": 6,
+     "is_open": false
+    },
+    "Closed": {
+     "n": 5,
+     "is_open": false
+    },
+    "Expired": {
+     "n": 4,
+     "is_open": false
+    },
+    "Canceled": {
+     "n": 2,
+     "is_open": false
+    },
+    "Corrections Required": {
+     "n": 1,
+     "is_open": true
+    }
+   }
   },
   "bellevue": {
    "label": "Bellevue (Open Data)",
    "outcome": "ok",
    "records": 356,
    "detail": "356 records",
-   "elapsed_ms": 362
+   "elapsed_ms": 309,
+   "statuses": {
+    "Closed": {
+     "n": 234,
+     "is_open": false
+    },
+    "Issued": {
+     "n": 57,
+     "is_open": true
+    },
+    "Expired": {
+     "n": 23,
+     "is_open": false
+    },
+    "Canceled": {
+     "n": 14,
+     "is_open": false
+    },
+    "Violations": {
+     "n": 14,
+     "is_open": true
+    },
+    "Open": {
+     "n": 7,
+     "is_open": true
+    },
+    "Pending": {
+     "n": 3,
+     "is_open": true
+    },
+    "Not Required": {
+     "n": 2,
+     "is_open": false
+    },
+    "Ready to Issue": {
+     "n": 1,
+     "is_open": true
+    },
+    "Completeness Check": {
+     "n": 1,
+     "is_open": true
+    }
+   }
   },
   "shoreline": {
    "label": "Shoreline (eTRAKiT)",
    "outcome": "ok",
    "records": 53,
    "detail": "53 records",
-   "elapsed_ms": 3095
+   "elapsed_ms": 3074,
+   "statuses": {
+    "ARCHIVED": {
+     "n": 8,
+     "is_open": false
+    },
+    "DESTROYED": {
+     "n": 5,
+     "is_open": false
+    },
+    "CLOSED": {
+     "n": 3,
+     "is_open": false
+    },
+    "RECORDS ARCHIVED": {
+     "n": 2,
+     "is_open": false
+    },
+    "ISSUED": {
+     "n": 2,
+     "is_open": true
+    }
+   }
   },
   "redmond": {
    "label": "Redmond (EnerGov Civic Access)",
    "outcome": "ok",
    "records": 32,
    "detail": "32 records",
-   "elapsed_ms": 10088
+   "elapsed_ms": 10286,
+   "statuses": {
+    "Finaled": {
+     "n": 24,
+     "is_open": false
+    },
+    "Expired": {
+     "n": 4,
+     "is_open": false
+    },
+    "Issued": {
+     "n": 3,
+     "is_open": true
+    },
+    "Withdrawn": {
+     "n": 1,
+     "is_open": false
+    }
+   }
   },
   "accela:WOODINVILLE": {
    "label": "Woodinville (Accela)",
    "outcome": "ok",
    "records": 9,
    "detail": "9 records",
-   "elapsed_ms": 854
+   "elapsed_ms": 839,
+   "statuses": {
+    "Finaled": {
+     "n": 4,
+     "is_open": false
+    },
+    "Closed": {
+     "n": 3,
+     "is_open": false
+    },
+    "Issued": {
+     "n": 1,
+     "is_open": true
+    }
+   }
   },
   "accela:kingco": {
    "label": "King County (Accela)",
    "outcome": "ok",
    "records": 14,
    "detail": "14 records",
-   "elapsed_ms": 1593
+   "elapsed_ms": 947,
+   "statuses": {
+    "Closed": {
+     "n": 6,
+     "is_open": false
+    },
+    "Permit Expired": {
+     "n": 4,
+     "is_open": false
+    },
+    "Canceled": {
+     "n": 2,
+     "is_open": false
+    },
+    "Permit Completed": {
+     "n": 2,
+     "is_open": false
+    }
+   }
   },
   "smartgov:normandy park": {
    "label": "Normandy Park (SmartGov)",
    "outcome": "ok",
    "records": 21,
    "detail": "21 records",
-   "elapsed_ms": 875
+   "elapsed_ms": 1023,
+   "statuses": {
+    "Closed": {
+     "n": 13,
+     "is_open": false
+    },
+    "Issued": {
+     "n": 3,
+     "is_open": true
+    },
+    "Under Review": {
+     "n": 2,
+     "is_open": true
+    },
+    "Decision Issued": {
+     "n": 1,
+     "is_open": true
+    },
+    "Finaled": {
+     "n": 1,
+     "is_open": false
+    },
+    "Payment Pending": {
+     "n": 1,
+     "is_open": true
+    }
+   }
   },
   "smartgov:carnation": {
    "label": "Carnation (SmartGov)",
    "outcome": "ok",
    "records": 2,
    "detail": "2 records",
-   "elapsed_ms": 503
+   "elapsed_ms": 462,
+   "statuses": {
+    "Closed": {
+     "n": 1,
+     "is_open": false
+    },
+    "Awaiting Completeness Review": {
+     "n": 1,
+     "is_open": true
+    }
+   }
   },
   "lama:seatac": {
    "label": "SeaTac (LAMA)",
    "outcome": "ok",
    "records": 178,
    "detail": "178 records; non-fatal: showing first 200 of 343 matches — narrow the search",
-   "elapsed_ms": 5117
+   "elapsed_ms": 4718,
+   "statuses": {
+    "Permit Finalized": {
+     "n": 138,
+     "is_open": false
+    },
+    "Permit Expired": {
+     "n": 18,
+     "is_open": false
+    },
+    "Permit Issued": {
+     "n": 14,
+     "is_open": true
+    },
+    "Inspections Complete": {
+     "n": 6,
+     "is_open": false
+    },
+    "Finaled": {
+     "n": 2,
+     "is_open": false
+    }
+   }
   },
   "assessor": {
    "label": "King County Assessor (permit index)",
    "outcome": "ok",
    "records": 7,
    "detail": "7 records",
-   "elapsed_ms": 1004
+   "elapsed_ms": 1242,
+   "statuses": {}
   },
   "lni": {
    "label": "WA State L&I (electrical)",
    "outcome": "ok",
    "records": 12,
    "detail": "12 records",
-   "elapsed_ms": 3015
+   "elapsed_ms": 3000,
+   "statuses": {
+    "Inactive": {
+     "n": 12,
+     "is_open": false
+    }
+   }
   },
   "mbp:auburn": {
    "label": "Auburn (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1133
+   "elapsed_ms": 602,
+   "statuses": {}
   },
   "mbp:bellevue": {
    "label": "Bellevue (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 2874
+   "elapsed_ms": 2701,
+   "statuses": {}
   },
   "mbp:bothell": {
    "label": "Bothell (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1565
+   "elapsed_ms": 512,
+   "statuses": {}
   },
   "mbp:burien": {
    "label": "Burien (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1333
+   "elapsed_ms": 811,
+   "statuses": {}
   },
   "mbp:edmonds": {
    "label": "Edmonds (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 903
+   "elapsed_ms": 575,
+   "statuses": {}
   },
   "mbp:federal way": {
    "label": "Federal Way (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 574
+   "elapsed_ms": 596,
+   "statuses": {}
   },
   "mbp:issaquah": {
    "label": "Issaquah (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 736
+   "elapsed_ms": 783,
+   "statuses": {}
   },
   "mbp:kenmore": {
    "label": "Kenmore (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 535
+   "elapsed_ms": 546,
+   "statuses": {}
   },
   "mbp:king county": {
    "label": "King County (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 948
+   "elapsed_ms": 482,
+   "statuses": {}
   },
   "mbp:kirkland": {
    "label": "Kirkland (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1828
+   "elapsed_ms": 672,
+   "statuses": {}
   },
   "mbp:mercer island": {
    "label": "Mercer Island (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1184
+   "elapsed_ms": 538,
+   "statuses": {}
   },
   "mbp:mill creek": {
    "label": "Mill Creek (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 745
+   "elapsed_ms": 607,
+   "statuses": {}
   },
   "mbp:newcastle": {
    "label": "Newcastle (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 668
+   "elapsed_ms": 554,
+   "statuses": {}
   },
   "mbp:sammamish": {
    "label": "Sammamish (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 921
+   "elapsed_ms": 928,
+   "statuses": {}
   },
   "mbp:snoqualmie": {
    "label": "Snoqualmie (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1008
+   "elapsed_ms": 906,
+   "statuses": {}
   }
  }
 }

@@ -1,0 +1,38 @@
+name: Source health
+
+# Weekly proof-of-life for every live adapter (scripts/source_health.py).
+# Commits source_health.json and the regenerated README health column so the
+# scorecard always shows the last sweep. Never fails the build: outages are
+# information, not regressions.
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"   # Mondays 14:00 UTC (~07:00 Pacific)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Probe sources
+        run: python scripts/source_health.py --write
+      - name: Regenerate scorecard
+        run: python scripts/gen_scorecard.py --write
+      - name: Commit if changed
+        run: |
+          git config user.name "source-health[bot]"
+          git config user.email "source-health@users.noreply.github.com"
+          git add source_health.json README.md
+          if git diff --cached --quiet; then
+            echo "no change"
+          else
+            git commit -m "chore: weekly source health sweep ($(date -u +%F))"
+            git push
+          fi

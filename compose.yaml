@@ -1,0 +1,35 @@
+# Hosted read-only API + MCP (#42). Mirrors the inkcheck hardening on the
+# same droplet. Caddy terminates TLS; this container is only reachable on the
+# shared backend network. See deploy/README.md for the one-time setup.
+services:
+  permits:
+    build: .
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      KCPS_PORT: "8080"
+      KCPS_TRUST_PROXY: "1"
+      KCPS_CACHE_TTL: ${KCPS_CACHE_TTL:-900}
+      KCPS_RATE_PER_MIN: ${KCPS_RATE_PER_MIN:-30}
+      KCPS_GLOBAL_RATE_PER_MIN: ${KCPS_GLOBAL_RATE_PER_MIN:-300}
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "3"
+    networks:
+      - backend
+
+networks:
+  backend:
+    external: true
+    name: ${BACKEND_NETWORK:-inkcheck_backend}

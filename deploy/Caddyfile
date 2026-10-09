@@ -1,0 +1,10 @@
+{$KCPS_HOST:permits-api.secondlandings.com} {
+  encode zstd gzip
+  reverse_proxy permits:8080
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Permissions-Policy "camera=(), geolocation=(), microphone=()"
+    -Server
+  }
+}

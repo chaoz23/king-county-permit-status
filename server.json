@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.chaoz23/king-county-permit-status",
+  "description": "Live building-permit history and status for any King County, WA address, parcel or permit number — 20 city systems plus the county and WA L&I electrical, normalized to one schema with provenance. Read-only, no auth.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/chaoz23/king-county-permit-status",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://permits-api.secondlandings.com/mcp"
+    }
+  ]
+}

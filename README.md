@@ -18,6 +18,21 @@ python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
 python3 lookup.py --schema                      # print tool definition
 ```
 
+### Hosted API + MCP (no install)
+
+The same lookup is served read-only, no auth, from `permits-api.secondlandings.com`
+(`server.py`, zero dependencies; see `deploy/README.md`):
+
+| | |
+|---|---|
+| **MCP** (Streamable HTTP) | `POST https://permits-api.secondlandings.com/mcp` — tool `king_county_permit_status`, arg `query` |
+| **REST** | `GET https://permits-api.secondlandings.com/api/lookup?q=1817+Morris+Ave+S,+Renton+WA` |
+| **OpenAPI 3.1** (typed) | `/openapi.json` · agent orientation `/llms.txt` · CLI definition `/tool.json` · `/healthz` |
+
+Results are live; the server caches each query for 15 minutes and rate-limits
+per client (30/min) to protect the municipal portals. Run it yourself with
+`python3 server.py` or `docker compose up` — `server.json` is the MCP Registry manifest.
+
 Parcel-number searches query every supported MyBuildingPermit and live city
 portal because a bare parcel number does not identify its city jurisdiction.
 

@@ -1,0 +1,48 @@
+name: Deploy hosted API
+
+# Redeploys the hosted API/MCP on the droplet by pulling main and rebuilding
+# the container (same pattern as inkcheck). Manual dispatch or a published
+# Release. One-time setup is in deploy/README.md — the three secrets are the
+# deploy key, host and user; APP_DIR is a repo variable.
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+concurrency:
+  group: deploy-droplet-permits
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      APP_DIR: ${{ vars.APP_DIR || '/opt/king-county-permit-status' }}
+    steps:
+      - name: Redeploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DROPLET_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DROPLET_HOST }}
+          SSH_USER: ${{ secrets.DROPLET_USER }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SSH_KEY:-}" ] || [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_USER:-}" ]; then
+            echo "::error::Missing DROPLET_SSH_KEY / DROPLET_HOST / DROPLET_USER secrets. See deploy/README.md."
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail; \
+             cd '$APP_DIR'; \
+             echo '--- before:' \$(git rev-parse --short HEAD); \
+             git pull --ff-only; \
+             echo '--- after:'  \$(git rev-parse --short HEAD); \
+             docker compose up -d --build; \
+             docker image prune -f; \
+             docker compose ps; \
+             sleep 3; curl -fsS http://127.0.0.1:8080/healthz >/dev/null 2>&1 || docker compose exec -T permits python3 -c 'import urllib.request;print(urllib.request.urlopen(\"http://127.0.0.1:8080/healthz\",timeout=5).read()[:120])'"

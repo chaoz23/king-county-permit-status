@@ -192,6 +192,21 @@ def main() -> int:
         change = f"  (was {r['changed_from']})" if r.get("changed_from") else ""
         print(f"  {ICON[r['outcome']]} {r['label']:34} {r['outcome']:12} "
               f"{r['elapsed_ms']:>6}ms  {r['detail'][:70]}{change}")
+    if "--qc" in sys.argv:
+        # Fold the weekly end-to-end QC run (scripts/qc_smoke.py --json) in, so
+        # routing-level regressions sit next to adapter liveness (#55).
+        qc_path = sys.argv[sys.argv.index("--qc") + 1]
+        try:
+            with open(qc_path) as f:
+                qc = json.load(f)
+            report["qc"] = {k: qc.get(k) for k in ("passed", "failed", "errored", "slow")}
+            report["qc"]["failing"] = [c["case"] for c in qc.get("cases", [])
+                                       if c.get("outcome") != "pass"]
+            print(f"QC smoke: {report['qc']['passed']} passed · {report['qc']['failed']} failed · "
+                  f"{report['qc']['errored']} errored  failing={report['qc']['failing']}")
+        except (OSError, ValueError) as exc:
+            report["qc"] = {"error": f"no QC summary: {exc}"}
+            print(f"QC smoke: no summary ({exc})")
     if "--write" in sys.argv:
         with open(HEALTH_PATH, "w") as f:
             json.dump(report, f, indent=1, ensure_ascii=False)

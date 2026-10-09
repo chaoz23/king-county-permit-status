@@ -158,7 +158,9 @@ class RefreshApplySafetyTests(unittest.TestCase):
         file_open.assert_not_called()
         self.assertIn("not updated", output.getvalue().lower())
 
-    def test_apply_does_not_stamp_dead_portal_as_verified(self):
+    def test_dead_portal_is_advisory_and_does_not_block_apply(self):
+        """#54: a dead city homepage is reported, but the L&I/MBP lists that
+        were verified still get applied (a dead URL once stalled refresh 99 days)."""
         data = {
             "last_verified": "2026-06-23",
             "cities_own_electrical": ["bellevue"],
@@ -171,29 +173,27 @@ class RefreshApplySafetyTests(unittest.TestCase):
         with (
             patch.object(sys, "argv", ["refresh.py", "--apply"]),
             patch.object(refresh, "load_data", return_value=data),
-            patch.object(
-                refresh,
-                "fetch_lni_cities",
-                return_value={"bellevue"},
-            ),
-            patch.object(
-                refresh,
-                "fetch_mbp_jurisdictions",
-                return_value={"bellevue"},
-            ),
-            patch.object(
-                refresh,
-                "check_url",
-                return_value=(False, "DEAD (offline)"),
-            ) as check_url,
+            patch.object(refresh, "fetch_lni_cities", return_value={"bellevue"}),
+            patch.object(refresh, "fetch_mbp_jurisdictions", return_value={"bellevue"}),
+            patch.object(refresh, "check_url", return_value=(False, "DEAD (offline)")) as check_url,
             patch("builtins.open", file_open),
             redirect_stdout(output),
         ):
             refresh.main()
 
         check_url.assert_called_once_with("https://dead.example")
-        file_open.assert_not_called()
-        self.assertIn("not updated", output.getvalue().lower())
+        file_open.assert_called_once()                       # routing data WAS written
+        text = output.getvalue()
+        self.assertIn("not blocking apply", text)
+        self.assertIn("kent", text)
+        self.assertNotIn("not updated", text.lower())
+
+    def test_tls_refusal_counts_as_needs_browser_not_dead(self):
+        err = Exception("<urlopen error [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] sslv3 alert handshake failure>")
+        with patch.object(refresh.urllib.request, "urlopen", side_effect=err):
+            ok, note = refresh.check_url("https://example.test")
+        self.assertTrue(ok)
+        self.assertIn("needs browser", note)
 
     def test_apply_writes_verified_source_changes(self):
         data = {

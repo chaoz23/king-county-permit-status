@@ -1012,7 +1012,54 @@ def search_shoreline(input_type: str, value: str) -> tuple[list[dict], list[str]
     # returning a CSV file; that is simply zero results, not an error.
     if "csv" not in ctype.lower():
         return [], []
-    return _parse_shoreline_csv(body), []
+    permits = _parse_shoreline_csv(body)
+    return _shoreline_enrich(permits), []
+
+
+# The CSV export carries no status/description; the detail page does (#51).
+# One ~170 KB GET per permit, so only the newest SHORELINE_DETAIL_LIMIT are
+# enriched, concurrently. Older rows keep status "" / is_open null.
+SHORELINE_DETAIL_LIMIT = 20
+_SHORELINE_DETAIL_FIELDS = {
+    "status": "lblPermitStatus", "description": "lblPermitDesc",
+    "issued_date": "lblPermitIssuedDate", "finaled_date": "lblPermitFinaledDate",
+    "expires_date": "lblPermitExpirationDate",
+}
+
+
+def _shoreline_detail(permit_number: str) -> dict:
+    """Fetch Search/permit.aspx?activityNo=<n> and read the labelled fields.
+    Returns {} on any failure."""
+    url = f"{SHORELINE_SEARCH_URL}?activityNo={urllib.parse.quote(permit_number)}"
+    try:
+        body = urllib.request.urlopen(urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0"}), timeout=30).read().decode("utf-8", "replace")
+    except Exception:
+        return {}
+    out = {}
+    for field, label in _SHORELINE_DETAIL_FIELDS.items():
+        m = re.search(r'id="cplMain_ctl\d+_%s"[^>]*>(.*?)</span>' % label, body, re.S)
+        if not m:
+            continue
+        text = html_unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
+        out[field] = _shoreline_date(text) if field.endswith("_date") else text
+    return out
+
+
+def _shoreline_enrich(permits: list[dict]) -> list[dict]:
+    newest = sorted(permits, key=lambda p: p["applied_date"] or "", reverse=True)
+    targets = [p for p in newest if p.get("permit_number")][:SHORELINE_DETAIL_LIMIT]
+    if not targets:
+        return permits
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        details = pool.map(lambda p: _shoreline_detail(p["permit_number"]), targets)
+        for permit, detail in zip(targets, details):
+            for field, value in detail.items():
+                if value and not permit.get(field):
+                    permit[field] = value
+            if detail:
+                permit["portal"] = f"{SHORELINE_SEARCH_URL}?activityNo={permit['permit_number']}"
+    return permits
 
 
 # Tyler EnerGov "Civic Access" self-service portals. Same search contract as
@@ -1257,16 +1304,47 @@ def search_accela(agency: str, input_type: str, value: str,
             "Accept-Language": "en-US,en;q=0.9",
         })
         body = opener.open(req, timeout=30).read().decode("utf-8", "replace")
+        rows = _accela_rows(body)
+        # The grid pages at 10 via a WebForms pager in the footer row (#49).
+        # Replay its "Next >" postback with the page's hidden fields until the
+        # link disappears. The control id shifts per page, so re-parse each time.
+        pages = 1
+        post_url = f"{ACCELA_HOST}/{agency}/Cap/GlobalSearchResults.aspx?QueryText={urllib.parse.quote(query)}"
+        while pages < ACCELA_MAX_PAGES:
+            target = _accela_next_target(body)
+            if not target:
+                break
+            hidden = dict(re.findall(
+                r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"', body))
+            form = {**hidden, "__EVENTTARGET": target, "__EVENTARGUMENT": ""}
+            req = urllib.request.Request(
+                post_url, data=urllib.parse.urlencode(form).encode(),
+                headers={"User-Agent": "Mozilla/5.0", "Referer": url,
+                         "Content-Type": "application/x-www-form-urlencoded"})
+            body = opener.open(req, timeout=30).read().decode("utf-8", "replace")
+            more = _accela_rows(body)
+            if not more:
+                break
+            rows.extend(more)
+            pages += 1
     except Exception as error:
         return [], [str(error)]
 
-    rows = _accela_rows(body)
     permits = [_accela_permit(c, jurisdiction, portal_url) for c in rows]
     errors = []
-    total = re.search(r"Showing\s+1-\d+\s+of\s+(\d+)", body)
+    total = re.search(r"Showing\s+\d+-\d+\s+of\s+(\d+)", body)
     if rows and total and int(total.group(1)) > len(rows):
-        errors.append(f"showing first {len(rows)} matches — narrow the search")
+        errors.append(f"showing first {len(rows)} of {total.group(1)} matches — narrow the search")
     return permits, errors
+
+
+ACCELA_MAX_PAGES = 10        # 100 rows; a parcel rarely has more, a street keyword would
+
+
+def _accela_next_target(html: str) -> str | None:
+    """The __doPostBack target of the pager's enabled 'Next >' link, if any."""
+    m = re.search(r"__doPostBack\(&#39;([^&]+)&#39;,&#39;&#39;\)\"[^>]*>\s*Next\s*&gt;", html)
+    return m.group(1) if m else None
 
 
 # SmartGov public portals (Paladin Data Systems / Granicus GXA). The basic
@@ -1279,6 +1357,8 @@ SMARTGOV_PORTALS = {          # city -> smartgovcommunity.com subdomain
     "carnation": "ci-carnation-wa",
 }
 SMARTGOV_FIELDS = "_conv\tquery\tSearch\t_applicationSearchPage\t__submitFormValidator__"
+SMARTGOV_PAGE_SIZE = 10      # cards per page; the UI's SearchPage paginator
+SMARTGOV_MAX_PAGES = 20      # 200 records — plenty for a parcel, stops runaway keywords
 
 
 def _smartgov_token() -> str:
@@ -1385,15 +1465,37 @@ def search_smartgov(city: str, input_type: str,
             "__submitFormValidator__": _smartgov_token(),
             "_fields": SMARTGOV_FIELDS,
         }
+        post_headers = {**headers,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Referer": base + path}
         req = urllib.request.Request(
             base + path, data=urllib.parse.urlencode(form).encode(),
-            headers={**headers,
-                     "Content-Type": "application/x-www-form-urlencoded",
-                     "Referer": base + path})
+            headers=post_headers)
         body = opener.open(req, timeout=30).read().decode("utf-8", "replace")
+        permits = _parse_smartgov(body, city, base)
+        # Pages of SMARTGOV_PAGE_SIZE. The UI's paginator posts the same form
+        # to .../SearchPage with _applicationSearchPage=N (#50); a short page
+        # ends the loop. Capped so a runaway keyword can't spin forever.
+        page_no = 0
+        while (len(permits) == SMARTGOV_PAGE_SIZE * (page_no + 1)
+               and page_no + 1 < SMARTGOV_MAX_PAGES):
+            page_no += 1
+            form_n = {**form, "_applicationSearchPage": str(page_no),
+                      "__submitFormValidator__": _smartgov_token()}
+            req = urllib.request.Request(
+                base + path + "Page", data=urllib.parse.urlencode(form_n).encode(),
+                headers={**post_headers, "X-Requested-With": "XMLHttpRequest"})
+            more = _parse_smartgov(
+                opener.open(req, timeout=30).read().decode("utf-8", "replace"), city, base)
+            if not more:
+                break
+            permits.extend(more)
     except Exception as error:
         return [], [str(error)]
-    return _parse_smartgov(body, city, base), []
+    errors = []
+    if page_no + 1 >= SMARTGOV_MAX_PAGES and len(permits) == SMARTGOV_PAGE_SIZE * SMARTGOV_MAX_PAGES:
+        errors.append(f"showing first {len(permits)} matches — narrow the search")
+    return permits, errors
 
 
 # --- LAMA (SeaTac) --------------------------------------------------------
@@ -1559,6 +1661,15 @@ def parcel_id(pin: str | None) -> str | None:
     the mix."""
     digits = re.sub(r"\D", "", pin or "")
     return f"king:{digits}" if len(digits) == 10 else None
+
+
+def dedup_key(permit: dict) -> tuple[str, str]:
+    """(jurisdiction city token, normalized permit number). The jurisdiction
+    token is the first word so 'Seattle SDCI' and 'Seattle' agree; the number
+    drops spaces/dashes so MBP's '26 120953 FA' matches '26-120953-FA'."""
+    juris = (permit.get("jurisdiction") or "").lower().split()
+    number = re.sub(r"[\s\-]", "", (permit.get("permit_number") or "").upper())
+    return (juris[0] if juris else "", number)
 
 
 def enrich_permit(permit: dict) -> dict:
@@ -1909,24 +2020,23 @@ def lookup(raw_input: str) -> dict:
         else:
             separate_portal_note = electrical_note
 
-    # Deduplicate by permit number
-    # all_permits may contain raw MBP dicts (PermitNumber) or pre-normalized EnerGov dicts (permit_number)
+    # Deduplicate by (jurisdiction, permit number) — the same record reached
+    # from two sources (MBP-KC and KC Accela, MBP-Bellevue and Bellevue Open
+    # Data) collapses, but two cities that happen to share a number format
+    # (EnerGov cities both issue B25xxxxxx) both survive (#48).
+    # all_permits may contain raw MBP dicts (PermitNumber) or pre-normalized dicts (permit_number)
     seen = set()
     unique = []
     for p in all_permits:
-        if "permit_number" in p:  # already normalized (EnerGov)
-            pn = p["permit_number"]
-            normalized = p
-        else:  # raw MBP dict
-            pn = p.get("PermitNumber", "")
-            normalized = format_permit(p)
-        if pn not in seen:
-            seen.add(pn)
+        normalized = p if "permit_number" in p else format_permit(p)
+        key = dedup_key(normalized)
+        if key not in seen:
+            seen.add(key)
             unique.append(normalized)
     for p in lni_permits:
-        pn = p.get("permit_number", "")
-        if pn not in seen:
-            seen.add(pn)
+        key = dedup_key(p)
+        if key not in seen:
+            seen.add(key)
             unique.append(p)
 
     # Sort by applied date (newest first)

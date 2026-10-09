@@ -153,6 +153,11 @@ def check_url(url: str) -> tuple[bool, str]:
         # Missing/bad-request and server errors indicate an unusable URL.
         return e.code in {401, 403, 405, 429}, f"HTTP {e.code}"
     except Exception as e:
+        # A TLS handshake refusal is a bot gate, not a dead host: the page
+        # loads in a browser (Redmond's old host, Kent). Same taxonomy as
+        # scripts/source_health.py: blocked ≠ dead.
+        if re.search(r"ssl|handshake|tls", str(e), re.I):
+            return True, f"TLS blocks non-browser clients — needs browser ({e})"
         return False, f"DEAD ({e})"
 
 
@@ -248,13 +253,17 @@ def main():
         if not ok:
             dead.append(city)
     if dead:
+        # Advisory only (#54): a dead city homepage must not block refreshing
+        # the L&I and MBP lists that *were* verified. It stalled last_verified
+        # for 99 days once. The dead list is reported and recorded for review.
         changes["dead_urls"] = dead
-        verification_failed = True
+        print(f"  WARN: portal URLs need re-pointing: {dead} (not blocking apply)")
 
     # Summary
     print()
     if apply_changes and verification_failed:
-        print("Verification incomplete; routing data was not updated.")
+        print("Verification incomplete (L&I or MBP list could not be fetched); "
+              "routing data was not updated.")
         return
 
     if changes:

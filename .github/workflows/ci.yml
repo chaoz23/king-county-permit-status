@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 15 * * 1"   # Mondays — surface time-dependent failures even when nothing merges (#63)
+  workflow_dispatch:
 
 permissions:
   contents: read

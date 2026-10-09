@@ -21,8 +21,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      - name: Live QC smoke (end-to-end routing; non-blocking)
+        continue-on-error: true
+        run: python scripts/qc_smoke.py --json qc_smoke.json
       - name: Probe sources
-        run: python scripts/source_health.py --write
+        run: python scripts/source_health.py --write --qc qc_smoke.json
       - name: Regenerate scorecard
         run: python scripts/gen_scorecard.py --write
       - name: Commit if changed

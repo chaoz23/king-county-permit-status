@@ -9,6 +9,7 @@ Each case asserts a loose contract (action + a jurisdiction/portal signal),
 so it catches crashes, regressions, and misroutes without being brittle about
 exact permit counts.
 """
+import json
 import os
 import sys
 import time
@@ -70,33 +71,43 @@ CASES = [
 ]
 
 
-def main():
-    print(f"QC smoke: {len(CASES)} live cases\n" + "=" * 66)
-    passed = failed = errored = 0
-    slow = []
-    for label, query, check in CASES:
+def run_cases(cases=CASES):
+    """Run every case; return a JSON-able summary (also used by the weekly
+    source-health workflow via --json)."""
+    results = []
+    for label, query, check in cases:
         t0 = time.time()
         try:
             result = lookup.lookup(query)
             ok, note = check(result)
+            outcome = "pass" if ok else "fail"
         except Exception:
-            errored += 1
-            print(f"  ERROR {label:22} {query[:32]!r}\n{traceback.format_exc()}")
-            continue
-        dt = time.time() - t0
-        if dt > 8:
-            slow.append((label, round(dt, 1)))
-        mark = "PASS" if ok else "FAIL"
-        if ok:
-            passed += 1
-        else:
-            failed += 1
-        print(f"  {mark} {label:22} {dt:5.1f}s  {note}")
+            ok, note, outcome = False, traceback.format_exc().strip().splitlines()[-1], "error"
+        dt = round(time.time() - t0, 1)
+        results.append({"case": label, "query": query, "outcome": outcome,
+                        "note": note, "elapsed_s": dt})
+    tally = {k: sum(1 for r in results if r["outcome"] == k) for k in ("pass", "fail", "error")}
+    return {"passed": tally["pass"], "failed": tally["fail"], "errored": tally["error"],
+            "slow": [[r["case"], r["elapsed_s"]] for r in results if r["elapsed_s"] > 8],
+            "cases": results}
+
+
+def main():
+    print(f"QC smoke: {len(CASES)} live cases\n" + "=" * 66)
+    summary = run_cases()
+    for r in summary["cases"]:
+        mark = {"pass": "PASS", "fail": "FAIL", "error": "ERROR"}[r["outcome"]]
+        print(f"  {mark} {r['case']:22} {r['elapsed_s']:5.1f}s  {r['note']}")
     print("=" * 66)
-    print(f"  {passed} passed · {failed} failed · {errored} errored")
-    if slow:
-        print("  slow (>8s):", slow)
-    sys.exit(1 if (failed or errored) else 0)
+    print(f"  {summary['passed']} passed · {summary['failed']} failed · {summary['errored']} errored")
+    if summary["slow"]:
+        print("  slow (>8s):", summary["slow"])
+    if "--json" in sys.argv:
+        path = sys.argv[sys.argv.index("--json") + 1]
+        with open(path, "w") as f:
+            json.dump(summary, f, indent=1)
+        print(f"  wrote {path}")
+    sys.exit(1 if (summary["failed"] or summary["errored"]) else 0)
 
 
 if __name__ == "__main__":

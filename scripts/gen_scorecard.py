@@ -21,7 +21,8 @@ HEALTH_KEYS = {"renton": ["renton"], "seattle": ["seattle"], "bellevue": ["belle
                "shoreline": ["shoreline"], "redmond": ["redmond"],
                "woodinville": ["accela:WOODINVILLE"], "black diamond": ["accela:kingco"],
                "normandy park": ["smartgov:normandy park"],
-               "carnation": ["smartgov:carnation"]}
+               "carnation": ["smartgov:carnation"],
+               "seatac": ["lama:seatac"]}
 HEALTH_ICON = {"ok": "✅", "empty": "⚪", "blocked": "⛔", "unknown": "❔"}   # anything else = ❌
 
 
@@ -61,7 +62,8 @@ DEDICATED = {"renton": "Renton (EnerGov)",
              "woodinville": "Woodinville (Accela)",
              "black diamond": "Black Diamond (via King County)",
              "normandy park": "Normandy Park (SmartGov)",
-             "carnation": "Carnation (SmartGov)"}
+             "carnation": "Carnation (SmartGov)",
+             "seatac": "SeaTac (LAMA)"}
 
 # Display names where title-casing the routing_data key is wrong.
 NAME_OVERRIDES = {"seatac": "SeaTac"}

@@ -15,14 +15,18 @@ import lookup
 # and neutral by default. Tests that care patch resolve_location themselves.
 _REAL_RESOLVE = lookup.resolve_location   # for tests of the resolver itself
 _GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
+_REAL_LAMA = lookup.search_lama            # for tests of the adapter itself
+_LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
 
 
 def setUpModule():
     _GEO_PATCH.start()
+    _LAMA_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
+    _LAMA_PATCH.stop()
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1507,3 +1511,131 @@ class CitylessGeocodeTests(unittest.TestCase):
             self.assertIsNone(_REAL_RESOLVE("100 Main St, Renton WA"))
             self.assertIsNone(_REAL_RESOLVE("100 Main St 98055"))
         self.assertEqual(len(calls), 2)
+
+
+LAMA_CARD = """
+<input name="ctl00$MainContent$ctl00$countAll" type="hidden" id="MainContent_ctl00_countAll" value="2" />
+<div class='card shadow-sm os-list-card permit'>
+ <div class="card-body"> <h5 class="card-title mb-2"> 18740 International Blvd <span class='dot'>&middot;</span> Class C &ndash; Construction <span class='dot'>&middot;</span> Permit #2505-1208-ROW <span class="dot">&middot;</span> Ref Code:JNW1GQ </h5>
+ <a class='btn btn-link btn-sm' href='Redirect.aspx?module=permits&ItemID=64952&view=true'>View</a>
+ <div class="row my-2"> <div class="col"> <strong>Type:</strong> Class C &ndash; Construction </div> <div class="col"> <strong>Status:</strong> Permit Issued </div> <div class="col"> <strong>Date Filed:</strong> 5/22/2025 </div> <div class="col"> <strong>Closed:</strong> No </div> </div>
+ <div class="collapse"> <div class="col"> <strong>Description:: </strong> Comcast proposes to replace cabinet </div>
+ <div class="col"> <strong>Expires:</strong> 10/7/2027 11:59:59 PM </div> <div class="col"> <strong>Final Date:</strong> </div> </div>
+</div></div>
+<div class='card shadow-sm os-list-card permit'>
+ <div class="card-body"> <h5 class="card-title mb-2"> 18740 International Blvd, Wings 2, 3 <span class='dot'>&middot;</span> Electrical <span class='dot'>&middot;</span> Permit #2401-0007-ELE </h5>
+ <div class="row my-2"> <div class="col"> <strong>Type:</strong> Electrical </div> <div class="col"> <strong>Status:</strong> Finaled </div> <div class="col"> <strong>Date Filed:</strong> 1/3/2024 </div> </div>
+ <div class="collapse"> <div class="col"> <strong>Final Date:</strong> 3/1/2024 9:00:00 AM </div> </div>
+</div></div>
+"""
+
+
+class LamaSearchTests(unittest.TestCase):
+    def test_lama_permit_number_is_detected(self):
+        self.assertEqual(lookup.detect_input_type("2505-1208-ROW"), ("permit", "2505-1208-ROW"))
+        self.assertEqual(lookup.detect_input_type("2401-0007-ELE")[0], "permit")
+
+    def test_cards_normalize_to_schema(self):
+        permits, total = lookup._parse_lama(LAMA_CARD, "seatac", "https://lama.seatacwa.gov")
+        self.assertEqual(total, 2)
+        self.assertEqual(len(permits), 2)
+        p = permits[0]
+        self.assertEqual(p["permit_number"], "2505-1208-ROW")
+        self.assertEqual(p["type"], "Class C – Construction")
+        self.assertEqual(p["status"], "Permit Issued")
+        self.assertEqual(p["description"], "Comcast proposes to replace cabinet")
+        self.assertEqual(p["address"], "18740 International Blvd")
+        self.assertEqual(p["jurisdiction"], "SeaTac")
+        self.assertEqual(p["applied_date"], "2025-05-22")
+        self.assertEqual(p["expires_date"], "2027-10-07")
+        self.assertIsNone(p["finaled_date"])
+        self.assertEqual(p["portal"], "https://lama.seatacwa.gov/Redirect.aspx?module=permits&ItemID=64952&view=true")
+        e = permits[1]
+        self.assertEqual(e["type"], "Electrical")
+        self.assertEqual(e["finaled_date"], "2024-03-01")
+        self.assertEqual(e["portal"], "https://lama.seatacwa.gov/Search.aspx")
+
+    def test_search_posts_viewstate_with_filter_and_page_size(self):
+        page = ('<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS" />'
+                '<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="GEN" />'
+                '<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="EV" />')
+        seen = {}
+
+        class Resp:
+            def __init__(self, body): self._b = body
+            def read(self): return self._b.encode()
+
+        class Opener:
+            def open(self, req, timeout=0):
+                if req.data is None:
+                    return Resp(page)
+                seen["form"] = urllib.parse.parse_qs(req.data.decode())
+                seen["url"] = req.full_url
+                return Resp(LAMA_CARD)
+
+        with patch.object(lookup.urllib.request, "build_opener", return_value=Opener()):
+            permits, errors = _REAL_LAMA("seatac", "address", "18740 International Blvd, SeaTac WA")
+
+        self.assertEqual(seen["url"], "https://lama.seatacwa.gov/Search.aspx")
+        f = seen["form"]
+        self.assertEqual(f["__EVENTTARGET"], ["ctl00$btnSearch"])
+        self.assertEqual(f["ctl00$tbSearch"], ["18740 International Blvd"])
+        self.assertEqual(f["ctl00$MainContent$ctl00$ddFilter"], ["permits"])
+        self.assertEqual(f["ctl00$MainContent$ctl00$ddPage"], ["200"])
+        self.assertEqual(f["__VIEWSTATE"], ["VS"])
+        self.assertEqual(len(permits), 2)
+        self.assertEqual(errors, [])
+
+    def test_truncation_is_reported(self):
+        body = LAMA_CARD.replace('value="2"', 'value="427"')
+        with patch.object(lookup, "_lama_hidden", return_value={"__VIEWSTATE": "x"}), \
+             patch.object(lookup.urllib.request, "build_opener") as bo:
+            bo.return_value.open.return_value.read.return_value = body.encode()
+            permits, errors = _REAL_LAMA("seatac", "address", "18740 International Blvd")
+        self.assertEqual(len(permits), 2)
+        self.assertEqual(errors, ["showing first 200 of 427 matches — narrow the search"])
+
+    def test_parcel_is_unsupported_without_error(self):
+        self.assertEqual(_REAL_LAMA("seatac", "parcel", "0422049042"), ([], []))
+
+    def test_seatac_address_routes_to_lama_and_clears_electrical_gap(self):
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "search_bellevue", return_value=[]), \
+             patch.object(lookup, "search_lni", return_value=([], [])), \
+             patch.object(lookup, "search_lama", return_value=([{
+                 "permit_number": "2505-1208-ROW", "type": "Electrical", "status": "Issued",
+                 "description": "", "address": "18740 International Blvd", "jurisdiction": "Seatac",
+                 "applied_date": "2025-05-22", "issued_date": None, "finaled_date": None,
+                 "expires_date": None, "portal": "https://lama.seatacwa.gov/Search.aspx"}], [])) as lama:
+            result = lookup.lookup("18740 International Blvd, SeaTac, WA 98188")
+
+        lama.assert_called_once_with("seatac", "address", "18740 International Blvd, SeaTac, WA 98188")
+        self.assertIn("SeaTac (LAMA)", result["searched"])
+        self.assertIn("WA State L&I — skipped (Seatac handles its own electrical)", result["searched"])
+        self.assertNotIn("separate_portal", result)    # SeaTac is live now
+        self.assertNotIn("next_step", result)
+        self.assertEqual(result["permit_count"], 1)
+
+    def test_permit_search_fans_out_to_lama_but_parcel_does_not(self):
+        common = [
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_energov", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_shoreline", return_value=([], [])),
+            patch.object(lookup, "search_seattle", return_value=([], [])),
+            patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+            patch.object(lookup, "search_accela", return_value=([], [])),
+            patch.object(lookup, "search_smartgov", return_value=([], [])),
+        ]
+        for p in common:
+            p.start(); self.addCleanup(p.stop)
+        with patch.object(lookup, "search_lama", return_value=([], [])) as lama:
+            r = lookup.lookup("2505-1208-ROW")
+            lama.assert_called_once_with("seatac", "permit", "2505-1208-ROW")
+            self.assertIn("SeaTac (LAMA)", r["searched"])
+        with patch.object(lookup, "search_lama", return_value=([], [])) as lama:
+            r = lookup.lookup("7222000353")
+            lama.assert_not_called()
+            self.assertNotIn("SeaTac (LAMA)", r["searched"])

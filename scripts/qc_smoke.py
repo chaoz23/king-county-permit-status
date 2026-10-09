@@ -47,6 +47,7 @@ CASES = [
     ("real/Woodinville", "13206 NE 201st Ct, Woodinville WA",   found_in("Woodinville")),
     ("real/BlackDiamond","33230 293rd Ave SE, Black Diamond WA",found_in("King County")),
     ("real/Auburn(MBP)", "25 W Main St, Auburn WA 98001",       found_in("Auburn")),
+    ("real/SeaTac",      "18740 International Blvd, SeaTac WA", found_in("SeaTac")),
     # --- REAL parcels / permit numbers ---
     ("real/parcel-Renton",  "7222000353",  found_in("Renton")),
     ("real/parcel-Redmond", "0225059115",  action_is("found")),

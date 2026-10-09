@@ -21,6 +21,14 @@ python3 lookup.py --schema                      # print tool definition
 Parcel-number searches query every supported MyBuildingPermit and live city
 portal because a bare parcel number does not identify its city jurisdiction.
 
+Address searches are routed by **geometry, not the mailing city**: the address
+is geocoded with King County's four-county locator and the point is tested
+against the city-limits polygons. A "Kent, WA" address that sits in
+unincorporated King County is searched as county, not Kent; an address with no
+city in it is routed correctly instead of fanning out to every jurisdiction; and
+Pierce-side addresses of Milton/Pacific/Auburn get a `pierce:` parcel id. The
+mailing city is only used when geocoding fails (`jurisdiction.basis` says which).
+
 ## What you get
 
 ```json
@@ -63,7 +71,9 @@ portal because a bare parcel number does not identify its city jurisdiction.
 | `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
 | `trust_level` | `live` (every applicable source answered), `partial` (a source errored or a portal needs manual follow-up), `fallback` (nothing searchable) |
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |
-| `parcel_id` | County-namespaced parcel, e.g. `king:7222000353`, when the query was or resolved to a parcel |
+| `parcel_id` | County-namespaced parcel, e.g. `king:7222000353` or `pierce:5985002900`, when the query was or resolved to a parcel |
+| `jurisdiction` | Where the query was routed and why: `city`, `basis` (`city-limits` = the geocoded point falls inside that city's polygon — authoritative; `geocoder-city`; `address-text` = the mailing city in the query, used only when geocoding fails), `county`, `unincorporated` (true → county permits only, even if the mailing city says "Kent") |
+| `address_resolution` | How well the geocoder matched an address: `matched_address`, `score`, `match_type` (`point` = exact address point; `interpolated` = number placed along the street, no parcel; `street`), `partial_match`, `street_number_snapped` |
 | `cite_as` | One-line attribution string for generated text |
 
 Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vendor status vocabularies; `null` when the source exposes no status), `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`, `record_url` (the specific record's URL when the source exposes one).

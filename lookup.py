@@ -441,6 +441,130 @@ KC_GEOCODER_URL = (
     "/Address/KingCo_ParcelAddress_locator/GeocodeServer/findAddressCandidates"
 )
 
+# --- Jurisdiction from geometry (#39) --------------------------------------
+# The mailing city on an address is not the permitting authority: "Kent, WA"
+# addresses sit in unincorporated King County, and Milton/Pacific/Auburn
+# straddle the Pierce line. So: geocode with King County's four-county locator
+# (returns PIN + county for King/Pierce/Snohomish/Kitsap), then point-query the
+# county's city-limits polygons for the real jurisdiction.
+KC_FOURCOUNTY_GEOCODER_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Address/FourCounty_locator/GeocodeServer/findAddressCandidates"
+)
+KC_CITY_LIMITS_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Administration/KingCo_AdministrativeAreas/MapServer/2/query"
+)
+KC_STATE_PLANE_WKID = "2926"
+# Polygon NAME → our routing key where they differ.
+CITY_LIMITS_NAME_MAP = {"beaux arts": "beaux arts village"}
+# Geocoder Addr_type → how much of the address was actually matched.
+_MATCH_TYPE = {"PointAddress": "point", "StreetAddress": "interpolated",
+               "StreetName": "street", "Locality": "locality"}
+
+
+def _arcgis_json(url: str, params: dict, timeout: int = 10) -> dict:
+    req = urllib.request.Request(url + "?" + urllib.parse.urlencode(params),
+                                 headers={"User-Agent": "Mozilla/5.0"})
+    return json.loads(urllib.request.urlopen(req, timeout=timeout).read().decode())
+
+
+def resolve_location(address: str) -> dict | None:
+    """Geocode an address and derive its permitting jurisdiction from the
+    city-limits polygon it falls in. Returns None when the geocoder has no
+    usable candidate (score < 80, or only a locality/street match with no
+    point). Never raises."""
+    def usable(c):
+        # An exact address point is trustworthy at a lower score: the locator
+        # docks points for a non-city locality ("Vashon WA" → 75) even when
+        # the house number and street matched exactly.
+        return (c.get("score", 0) >= 80
+                or (c.get("score", 0) >= 70
+                    and (c.get("attributes") or {}).get("Addr_type") == "PointAddress"))
+
+    def geocode(q, n):
+        data = _arcgis_json(KC_FOURCOUNTY_GEOCODER_URL, {
+            "SingleLine": q, "outFields": "*",
+            "outSR": KC_STATE_PLANE_WKID, "maxLocations": str(n), "f": "json"})
+        return [c for c in data.get("candidates") or [] if usable(c)]
+
+    try:
+        cands = geocode(address, 1)
+        if not cands and not re.search(r"\b(wa|washington)\b|\b\d{5}\b", address, re.I):
+            # The locator needs a region hint. Without a city the same street
+            # address can exist in several cities ("220 4th Ave S" is in Kent
+            # and Edmonds), so take the top match only if it is unambiguous,
+            # preferring King County — this is a King County tool.
+            cands = geocode(f"{address}, WA", 5)
+            if cands:
+                top = cands[0].get("score", 0)
+                points = [c for c in cands if c.get("score", 0) == top
+                          and (c.get("attributes") or {}).get("Addr_type") == "PointAddress"]
+                cities = {((c.get("attributes") or {}).get("City") or "",
+                           (c.get("attributes") or {}).get("Subregion") or "") for c in points}
+                if len(cities) > 1:
+                    king = [c for c in points
+                            if (c.get("attributes") or {}).get("Subregion") == "KING"]
+                    king_cities = {(c.get("attributes") or {}).get("City") for c in king}
+                    cands = king if len(king_cities) == 1 else []
+    except Exception:
+        return None
+    if not cands:
+        return None
+    c = cands[0]
+    a = c.get("attributes") or {}
+    match_type = _MATCH_TYPE.get(a.get("Addr_type") or "", "none")
+    if match_type in ("locality", "none"):
+        return None
+    county = (a.get("Subregion") or "").strip().lower() or None
+    pin = re.sub(r"\D", "", str(a.get("PIN") or ""))
+    house_in = (parse_address(address)[0] or "").strip()
+    house_out = str(a.get("AddNum") or "").strip()
+    loc = c.get("location") or {}
+    out = {
+        "matched_address": c.get("address"),
+        "score": c.get("score"),
+        "match_type": match_type,
+        "partial_match": match_type != "point",
+        "street_number_snapped": bool(house_in and house_out and house_in != house_out),
+        "county": county,
+        "parcel_id": f"{county}:{pin}" if county and len(pin) == 10 else None,
+        "pin": pin if len(pin) == 10 else None,
+        "geocoder_city": (a.get("City") or "").strip().title() or None,
+        "jurisdiction": None,
+        "jurisdiction_basis": None,
+        "unincorporated": None,
+    }
+    # City-limits polygon → jurisdiction. The layer covers all four counties.
+    if loc.get("x") is not None and loc.get("y") is not None:
+        try:
+            feats = _arcgis_json(KC_CITY_LIMITS_URL, {
+                "geometry": f"{loc['x']},{loc['y']}",
+                "geometryType": "esriGeometryPoint", "inSR": KC_STATE_PLANE_WKID,
+                "spatialRel": "esriSpatialRelIntersects", "outFields": "NAME,UNINC",
+                "returnGeometry": "false", "f": "json"}).get("features") or []
+        except Exception:
+            feats = []
+        if feats:
+            attrs = feats[0].get("attributes") or {}
+            name = (attrs.get("NAME") or "").strip()
+            out["unincorporated"] = bool(attrs.get("UNINC"))
+            out["jurisdiction"] = name
+            out["jurisdiction_basis"] = "city-limits"
+    if out["jurisdiction"] is None and out["geocoder_city"]:
+        out["jurisdiction"] = out["geocoder_city"]
+        out["jurisdiction_basis"] = "geocoder-city"
+    return out
+
+
+def jurisdiction_city_key(loc: dict | None) -> str | None:
+    """Our lowercase routing key for a resolved location's city, or None when
+    the address is unincorporated or outside the cities we know."""
+    if not loc or not loc.get("jurisdiction") or loc.get("unincorporated"):
+        return None
+    key = " ".join(loc["jurisdiction"].lower().split())
+    return CITY_LIMITS_NAME_MAP.get(key, key)
+
 
 def _geocode_parcel(address: str) -> str | None:
     """Look up King County parcel number for an address via ArcGIS geocoder."""
@@ -1309,6 +1433,24 @@ def lookup(raw_input: str) -> dict:
     input_type, value = detect_input_type(raw_input)
     city = detect_city(raw_input)
     resolved_parcel = value if input_type == "parcel" else None
+    location = None
+    jurisdiction_basis = "address-text" if city else None
+    if input_type == "address":
+        # Polygon beats mailing city (#39): a "Kent, WA" address can be
+        # unincorporated King County, and the text city can simply be absent.
+        location = resolve_location(value)
+        poly_city = jurisdiction_city_key(location)
+        known = (set(JURIS_BY_NAME) - {"king county"}) | set(SEPARATE_PORTALS)
+        if location and location.get("unincorporated") and location.get("county") == "king":
+            city = None                      # unincorporated KC: county sources only
+            jurisdiction_basis = "city-limits"
+        elif poly_city in known:
+            city = poly_city
+            jurisdiction_basis = location["jurisdiction_basis"]
+        if location and location.get("pin") and location.get("county") == "king":
+            resolved_parcel = location["pin"]
+    unincorporated_kc = bool(location and location.get("unincorporated")
+                             and location.get("county") == "king")
 
     opener = None
     token = None
@@ -1441,8 +1583,8 @@ def lookup(raw_input: str) -> dict:
         juris_to_search = ["20"]
         if city and city in JURIS_BY_NAME:
             juris_to_search.append(JURIS_BY_NAME[city])
-        elif not city:
-            # No city detected — search all jurisdictions
+        elif not city and not unincorporated_kc:
+            # No city detected and no polygon answer — search all jurisdictions
             juris_to_search = list(JURISDICTIONS.keys())
 
         for jid in juris_to_search:
@@ -1458,7 +1600,7 @@ def lookup(raw_input: str) -> dict:
 
         # EnerGov cities: resolve parcel, then search by parcel
         if city and city in ENERGOV_PORTALS:
-            parcel = _geocode_parcel(value)
+            parcel = resolved_parcel or _geocode_parcel(value)
             if parcel:
                 resolved_parcel = parcel
                 eg = search_energov(city, parcel, exact=False)
@@ -1668,7 +1810,18 @@ def lookup(raw_input: str) -> dict:
         trust = "live"
     result["trust_level"] = trust
     result["fetched_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    result["parcel_id"] = parcel_id(resolved_parcel)
+    result["parcel_id"] = ((location or {}).get("parcel_id")
+                           or parcel_id(resolved_parcel))
+    result["jurisdiction"] = {
+        "city": city.title() if city else None,
+        "basis": jurisdiction_basis,
+        "county": (location or {}).get("county"),
+        "unincorporated": (location or {}).get("unincorporated"),
+    }
+    if location:
+        result["address_resolution"] = {
+            k: location[k] for k in ("matched_address", "score", "match_type",
+                                     "partial_match", "street_number_snapped")}
     result["cite_as"] = (f"{CITE_AS}, queried {result['fetched_at'][:10]}"
                          + (f" via {', '.join(dict.fromkeys(searched_jurisdictions))}"
                             if searched_jurisdictions else ""))
@@ -1749,7 +1902,28 @@ TOOL_SCHEMA = {
                 "description": "live — every applicable source answered; partial — some source errored or a city portal needs manual follow-up; fallback — nothing searchable, use separate_portal",
             },
             "fetched_at": {"type": "string", "description": "UTC ISO-8601 timestamp of this query; records are live, not cached"},
-            "parcel_id": {"type": ["string", "null"], "description": "County-namespaced parcel id, e.g. 'king:7222000353', when the query was or resolved to a parcel"},
+            "parcel_id": {"type": ["string", "null"], "description": "County-namespaced parcel id, e.g. 'king:7222000353' or 'pierce:5985002900', when the query was or resolved to a parcel"},
+            "jurisdiction": {
+                "type": "object",
+                "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon — authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), null (none). unincorporated=true means county permits only.",
+                "properties": {
+                    "city": {"type": ["string", "null"]},
+                    "basis": {"type": ["string", "null"], "enum": ["city-limits", "geocoder-city", "address-text", None]},
+                    "county": {"type": ["string", "null"]},
+                    "unincorporated": {"type": ["boolean", "null"]},
+                },
+            },
+            "address_resolution": {
+                "type": "object",
+                "description": "How well the geocoder matched an address query. match_type: point (exact address point), interpolated (number placed along the street; no parcel), street (street only). partial_match is true for anything but point; street_number_snapped when the matched house number differs from the one given.",
+                "properties": {
+                    "matched_address": {"type": ["string", "null"]},
+                    "score": {"type": "number"},
+                    "match_type": {"type": "string", "enum": ["point", "interpolated", "street"]},
+                    "partial_match": {"type": "boolean"},
+                    "street_number_snapped": {"type": "boolean"},
+                },
+            },
             "cite_as": {"type": "string", "description": "One-line attribution string for generated text"},
             "searched": {
                 "type": "array",

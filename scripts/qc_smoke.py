@@ -64,6 +64,8 @@ CASES = [
     ("fake/permit",     "ZZZ99-99999",                         action_is("none")),
     # --- FALLBACK cities (expect a portal note) ---
     ("fallback/Kent",       "220 4th Ave S, Kent WA 98032",      fallback_for("Kent")),
+    ("index/Kent",          "22311 84th Ave S, Kent WA 98032",   found_in("Kent")),        # Assessor index
+    ("index/Covington",     "16720 SE 271st St, Covington WA",   found_in("Covington")),
     ("fallback/DesMoines",  "21630 11th Ave S, Des Moines WA",   fallback_for("Des Moines")),
     ("fallback/Covington",  "16720 SE 271st St, Covington WA",   fallback_for("Covington")),
     # --- EDGE cases ---

@@ -9,16 +9,19 @@ import route
 # network and neutral (same as tests/test_lookup.py).
 _GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
 _LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
+_ASSESSOR_PATCH = patch.object(lookup, "search_assessor", return_value=([], []))
 
 
 def setUpModule():
     _GEO_PATCH.start()
     _LAMA_PATCH.start()
+    _ASSESSOR_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
     _LAMA_PATCH.stop()
+    _ASSESSOR_PATCH.stop()
 
 
 def mbp_permit(number="B-100", jurisdiction="Bellevue"):

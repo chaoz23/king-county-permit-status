@@ -120,6 +120,8 @@ PROBES = {
                            lambda: _pair(lookup.search_smartgov("carnation", "address", "4621 Tolt Ave, Carnation WA"))),
     "lama:seatac": ("SeaTac (LAMA)",
                     lambda: _pair(lookup.search_lama("seatac", "address", "18740 International Blvd, SeaTac WA"))),
+    "assessor": ("King County Assessor (permit index)",
+                 lambda: _pair(lookup.search_assessor("7759800010"))),   # Kent hotel: 7 rows
     "lni": ("WA State L&I (electrical)",
             lambda: _pair(lookup.search_lni("15332 Aurora Ave N", "shoreline"))),
 }

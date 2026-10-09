@@ -118,6 +118,8 @@ PROBES = {
                                lambda: _pair(lookup.search_smartgov("normandy park", "address", "801 SW 174th St, Normandy Park WA"))),
     "smartgov:carnation": ("Carnation (SmartGov)",
                            lambda: _pair(lookup.search_smartgov("carnation", "address", "4621 Tolt Ave, Carnation WA"))),
+    "lama:seatac": ("SeaTac (LAMA)",
+                    lambda: _pair(lookup.search_lama("seatac", "address", "18740 International Blvd, SeaTac WA"))),
     "lni": ("WA State L&I (electrical)",
             lambda: _pair(lookup.search_lni("15332 Aurora Ave N", "shoreline"))),
 }

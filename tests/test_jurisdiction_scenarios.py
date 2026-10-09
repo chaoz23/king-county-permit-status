@@ -8,14 +8,17 @@ import route
 # These scenarios test text-city routing; keep the polygon geocoder off the
 # network and neutral (same as tests/test_lookup.py).
 _GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
+_LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
 
 
 def setUpModule():
     _GEO_PATCH.start()
+    _LAMA_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
+    _LAMA_PATCH.stop()
 
 
 def mbp_permit(number="B-100", jurisdiction="Bellevue"):

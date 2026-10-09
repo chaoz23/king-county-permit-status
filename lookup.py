@@ -87,9 +87,6 @@ MANUAL_PORTALS = {
     "kent": {"vendor": "Kent permit status portal",
              "search_url": "https://permitstatus.kentwa.gov/",
              "search_by": ["address", "permit"]},
-    "seatac": {"vendor": "LAMA",
-               "search_url": "https://lama.seatacwa.gov/Search.aspx",
-               "search_by": ["address", "permit", "parcel"]},
     "des moines": {"vendor": "PermitTrax Citizens Connect",
                    "search_url": "https://desmoines-wa.permittrax.com/citizen/Home/DESMON_L/PBPW",
                    "search_by": ["address", "permit"]},
@@ -168,6 +165,9 @@ def detect_input_type(raw: str) -> tuple[str, str]:
         return "permit", s
     # Seattle SDCI-style: 6145915-CN, 6001001-EL, 3001271-LU
     if re.fullmatch(r"\d{7}-[A-Z]{2}", s, re.IGNORECASE):
+        return "permit", s
+    # SeaTac LAMA: 2505-1208-ROW (YYMM-seq-TYPE)
+    if re.fullmatch(r"\d{4}-\d{4}-[A-Z]{2,5}", s, re.IGNORECASE):
         return "permit", s
     # MBP-style: ADDC21-0275; EnerGov-style: B25000947, E26000458
     if re.match(r"[A-Z]{1,4}\d{2}[-\d]\d{3,6}$", s, re.IGNORECASE):
@@ -1374,6 +1374,127 @@ def search_smartgov(city: str, input_type: str,
     return _parse_smartgov(body, city, base), []
 
 
+# --- LAMA (SeaTac) --------------------------------------------------------
+# ASP.NET WebForms. One full-page POST with the page's VIEWSTATE and
+# __EVENTTARGET=ctl00$btnSearch returns result cards; the filter/sort/page-size
+# dropdowns can ride along on that same POST. Forward paging (btnFwd) does not
+# replay outside the browser's UpdatePanel, so we take the largest page (200)
+# and flag truncation. Parcel search is not supported by the portal.
+LAMA_PORTALS = {"seatac": "https://lama.seatacwa.gov"}
+_CITY_DISPLAY = {"seatac": "SeaTac"}
+
+
+def display_city(key: str) -> str:
+    """Routing key → display name ('seatac' → 'SeaTac', else Title Case)."""
+    return _CITY_DISPLAY.get(key.lower(), key.title())
+LAMA_PAGE_SIZE = 200
+_LAMA_HIDDEN = ("__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION")
+
+
+def _lama_date(raw: str | None) -> str | None:
+    """'5/22/2025 1:12:58 PM' or '5/22/2025' → YYYY-MM-DD."""
+    if not raw:
+        return None
+    m = re.match(r"\s*(\d{1,2})/(\d{1,2})/(\d{4})", raw)
+    if not m:
+        return None
+    mo, d, y = m.groups()
+    return f"{y}-{int(mo):02d}-{int(d):02d}"
+
+
+def _lama_hidden(page: str) -> dict:
+    out = {}
+    for k in _LAMA_HIDDEN:
+        m = (re.search(r'id="%s"[^>]*value="([^"]*)"' % k, page)
+             or re.search(r'value="([^"]*)"[^>]*id="%s"' % k, page))
+        if m:
+            out[k] = m.group(1)
+    return out
+
+
+def _lama_field(card: str, label: str) -> str:
+    m = re.search(r"<strong>\s*%s:?:?\s*</strong>\s*(.*?)\s*</div>" % re.escape(label), card, re.S)
+    return html_unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip() if m else ""
+
+
+def _parse_lama(body: str, city: str, base: str) -> tuple[list[dict], int | None]:
+    """Result cards → shared schema. Returns (permits, total_count)."""
+    m = re.search(r'id="MainContent_ctl00_countAll" value="(\d+)"', body)
+    total = int(m.group(1)) if m else None
+    permits = []
+    cards = re.split(r"<div class='card shadow-sm os-list-card", body)[1:]
+    for card in cards:
+        title = re.search(r'<h5 class="card-title[^"]*">(.*?)</h5>', card, re.S)
+        if not title:
+            continue
+        parts = [" ".join(html_unescape(re.sub(r"<[^>]+>", " ", p)).split())
+                 for p in re.split(r"""<span class=['"]dot['"]>.*?</span>""", title.group(1))]
+        number = next((p.split("#", 1)[1].strip() for p in parts if p.startswith("Permit #")), "")
+        if not number:
+            continue
+        address = parts[0] if parts else ""
+        ptype = parts[1] if len(parts) > 1 and not parts[1].startswith("Permit #") else ""
+        item = re.search(r"Redirect\.aspx\?module=permits&(?:amp;)?ItemID=(\d+)", card)
+        permits.append({
+            "permit_number": number,
+            "type": ptype or _lama_field(card, "Type"),
+            "status": _lama_field(card, "Status"),
+            "description": _lama_field(card, "Description"),
+            "address": address,
+            "jurisdiction": display_city(city),
+            "applied_date": _lama_date(_lama_field(card, "Date Filed")),
+            "issued_date": None,
+            "finaled_date": _lama_date(_lama_field(card, "Final Date")),
+            "expires_date": _lama_date(_lama_field(card, "Expires")),
+            "portal": (f"{base}/Redirect.aspx?module=permits&ItemID={item.group(1)}&view=true"
+                       if item else f"{base}/Search.aspx"),
+        })
+    return permits, total
+
+
+def search_lama(city: str, input_type: str, value: str) -> tuple[list[dict], list[str]]:
+    """Search a LAMA portal (SeaTac). Address → house + street keyword;
+    permit → exact number. Parcel is unsupported (returns nothing, no error)."""
+    if input_type == "parcel":
+        return [], []
+    base = LAMA_PORTALS[city]
+    url = f"{base}/Search.aspx"
+    if input_type == "address":
+        house, street = parse_address(value)
+        if not house or not street:
+            return [], ["Address requires a house number and street name"]
+        term = f"{house} {street}"
+    else:
+        term = value.strip()
+    ua = {"User-Agent": "Mozilla/5.0"}
+    try:
+        cj = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+        page = opener.open(urllib.request.Request(url, headers=ua), timeout=30).read().decode("utf-8", "replace")
+        hidden = _lama_hidden(page)
+        if "__VIEWSTATE" not in hidden:
+            return [], ["LAMA search page did not expose VIEWSTATE"]
+        form = {
+            "__EVENTTARGET": "ctl00$btnSearch", "__EVENTARGUMENT": "",
+            "ctl00$tbSearch": term,
+            "ctl00$MainContent$ctl00$ddFilter": "permits",
+            "ctl00$MainContent$ctl00$ddSort": "filed-desc",
+            "ctl00$MainContent$ctl00$ddPage": str(LAMA_PAGE_SIZE),
+            **hidden,
+        }
+        req = urllib.request.Request(url, data=urllib.parse.urlencode(form).encode(),
+                                     headers={**ua, "Referer": url,
+                                              "Content-Type": "application/x-www-form-urlencoded"})
+        body = opener.open(req, timeout=60).read().decode("utf-8", "replace")
+    except Exception as error:
+        return [], [str(error)]
+    permits, total = _parse_lama(body, city, base)
+    errors = []
+    if total and total > LAMA_PAGE_SIZE:
+        errors.append(f"showing first {LAMA_PAGE_SIZE} of {total} matches — narrow the search")
+    return permits, errors
+
+
 CITE_AS = "King County Permit Status (github.com/chaoz23/king-county-permit-status)"
 
 # Status words that mean a permit is no longer active, across every vendor
@@ -1404,7 +1525,8 @@ def record_url(permit: dict) -> str | None:
     # MBP encodes "26 120953 FA" as "26%20120953%20FA" — compare alphanumerics only
     squash = lambda s: re.sub(r"[^a-z0-9]", "", urllib.parse.unquote(s).lower())
     number = squash(permit.get("permit_number") or "")
-    if "/Detail/" in url or (number and number in squash(url)):
+    if (re.search(r"/Detail/|PermitDetails/|[?&]ItemID=\d+", url)
+            or (number and number in squash(url))):
         return url
     return None
 
@@ -1570,6 +1692,14 @@ def lookup(raw_input: str) -> dict:
                         [f"{c.title()} SmartGov: {e}" for e in er])
             thunks.append(t_smartgov)
 
+        if input_type == "permit":          # LAMA has no parcel search
+            for _lm in LAMA_PORTALS:
+                def t_lama(c=_lm):
+                    p, er = search_lama(c, input_type, value)
+                    return ([f"{display_city(c)} (LAMA)"], p,
+                            [f"{display_city(c)} LAMA: {e}" for e in er])
+                thunks.append(t_lama)
+
         def _safe(fn):
             try:
                 return fn()
@@ -1627,7 +1757,8 @@ def lookup(raw_input: str) -> dict:
               and city not in ("seattle", "shoreline")
               and city not in CIVIC_ACCESS_PORTALS
               and city not in ACCELA_PORTALS
-              and city not in SMARTGOV_PORTALS):
+              and city not in SMARTGOV_PORTALS
+              and city not in LAMA_PORTALS):
             separate_portal_note = {
                 "city": city.title(),
                 "portal": SEPARATE_PORTALS[city],
@@ -1701,6 +1832,13 @@ def lookup(raw_input: str) -> dict:
         searched_jurisdictions.append(f"{city.title()} (SmartGov)")
         errors.extend(f"{city.title()} SmartGov: {error}" for error in sg_errors)
 
+    # LAMA — SeaTac. Full history including SeaTac's self-run electrical.
+    if input_type == "address" and city in LAMA_PORTALS:
+        lm_permits, lm_errors = search_lama(city, input_type, value)
+        all_permits.extend(lm_permits)
+        searched_jurisdictions.append(f"{display_city(city)} (LAMA)")
+        errors.extend(f"{display_city(city)} LAMA: {error}" for error in lm_errors)
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -1722,6 +1860,7 @@ def lookup(raw_input: str) -> dict:
         or city in CIVIC_ACCESS_PORTALS
         or city in ACCELA_PORTALS
         or city in SMARTGOV_PORTALS
+        or city in LAMA_PORTALS
     )
     if city_does_electrical and not city_permits_searched:
         portal = SEPARATE_PORTALS.get(city.lower())

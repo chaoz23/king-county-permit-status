@@ -170,7 +170,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "PermitStatus": "Issued",
             "PermitDescription": "Garage",
             "Address": "1817 Morris Ave S",
-            "Jurisdiction": "King County",
+            "Jurisdiction": "Renton",      # same record, two sources -> collapses (#48)
             "AppliedDate": None,
             "IssuedDate": None,
             "FinaledDate": None,
@@ -1693,3 +1693,124 @@ class ParcelAddrTypeTests(unittest.TestCase):
         self.assertEqual(loc["match_type"], "point")
         self.assertEqual(loc["parcel_id"], "king:1823039057")
         self.assertTrue(loc["unincorporated"])
+
+
+class AdapterHardeningTests(unittest.TestCase):
+    """#48 dedup, #49 Accela paging, #50 SmartGov paging, #51 Shoreline detail."""
+
+    def test_dedup_key_collapses_same_record_but_keeps_other_cities(self):
+        a = {"jurisdiction": "Bellevue", "permit_number": "26 120953 FA"}
+        b = {"jurisdiction": "Bellevue", "permit_number": "26-120953-FA"}
+        c = {"jurisdiction": "Seattle SDCI", "permit_number": "26-120953-FA"}
+        self.assertEqual(lookup.dedup_key(a), lookup.dedup_key(b))
+        self.assertNotEqual(lookup.dedup_key(a), lookup.dedup_key(c))
+        self.assertEqual(lookup.dedup_key(c)[0], "seattle")
+
+    def test_same_number_in_two_cities_both_survive(self):
+        mk = lambda j: {"permit_number": "B25000947", "type": "Building", "status": "Issued",
+                        "description": "", "address": "x", "jurisdiction": j,
+                        "applied_date": "2025-01-01", "issued_date": None, "finaled_date": None,
+                        "expires_date": None, "portal": None}
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "search_energov", return_value=[mk("Renton")]), \
+             patch.object(lookup, "search_bellevue", return_value=[]), \
+             patch.object(lookup, "search_shoreline", return_value=([], [])), \
+             patch.object(lookup, "search_energov_civicaccess", return_value=([mk("Redmond")], [])), \
+             patch.object(lookup, "search_accela", return_value=([], [])), \
+             patch.object(lookup, "search_smartgov", return_value=([], [])):
+            result = lookup.lookup("7222000353")
+        self.assertEqual(result["permit_count"], 2)
+
+    def test_accela_next_target_only_when_enabled(self):
+        html = ('<a href="javascript:__doPostBack(&#39;ctl00$PlaceHolderMain$CapView$gdvPermitList$ctl13$ctl04&#39;,&#39;&#39;)" '
+                'class="x">Next &gt;</a>')
+        self.assertEqual(lookup._accela_next_target(html),
+                         "ctl00$PlaceHolderMain$CapView$gdvPermitList$ctl13$ctl04")
+        self.assertIsNone(lookup._accela_next_target('<span class="disabled">Next &gt;</span>'))
+
+    def test_accela_follows_pager(self):
+        row = lambda n: (f'<tr><td>01/02/2024</td><td><a>{n}</a></td><td>Building</td><td></td>'
+                         f'<td>1 MAIN ST, WA 98001</td><td>Issued</td></tr>')
+        page1 = ('<input type="hidden" name="__VIEWSTATE" value="VS1" />'
+                 '<table id="gdvPermitList">' + row("A1") + '</table>'
+                 '<a href="javascript:__doPostBack(&#39;grid$ctl13$ctl04&#39;,&#39;&#39;)">Next &gt;</a>'
+                 'Showing 1-1 of 2')
+        page2 = ('<table id="gdvPermitList">' + row("A2") + '</table>Showing 2-2 of 2')
+        posted = []
+
+        class Resp:
+            def __init__(self, b): self._b = b
+            def read(self): return self._b.encode()
+
+        class Opener:
+            def open(self, req, timeout=0):
+                if req.data:
+                    posted.append(urllib.parse.parse_qs(req.data.decode()))
+                    return Resp(page2)
+                return Resp(page1)
+
+        with patch.object(lookup.urllib.request, "build_opener", return_value=Opener()):
+            permits, errors = lookup.search_accela("kingco", "address", "1 Main St", "King County")
+        self.assertEqual([p["permit_number"] for p in permits], ["A1", "A2"])
+        self.assertEqual(posted[0]["__EVENTTARGET"], ["grid$ctl13$ctl04"])
+        self.assertEqual(posted[0]["__VIEWSTATE"], ["VS1"])
+        self.assertEqual(errors, [])
+
+    def test_smartgov_follows_searchpage_until_short_page(self):
+        # guid must be hex-shaped for the parser; the visible number can be anything
+        card = lambda n: ('<div class="search-result-item"><article><div class="search-result-title">'
+                          f"<a onclick=\"FormSupport.submitAction( 'Detail/{abs(hash(n)) % 10**8:08x}-{len(n)}' );\">{n}</a></div>"
+                          '<div class="row"><div class="col-lg-3"><div class="">Building</div>'
+                          '<div class="">Issued, 1/2/2024</div></div>'
+                          '<div class="col-lg-4"><div>1 MAIN ST</div><div>NORMANDY PARK, WA</div></div></div>'
+                          '</article></div>')
+        full = "".join(card(f"P{i}") for i in range(10))
+        calls = []
+
+        class Resp:
+            def __init__(self, b): self._b = b
+            def read(self): return self._b.encode()
+
+        class Opener:
+            def open(self, req, timeout=0):
+                calls.append((req.full_url, urllib.parse.parse_qs(req.data.decode()) if req.data else None))
+                if req.data is None:
+                    return Resp('<input name="_conv" value="7" />')
+                if req.full_url.endswith("/SearchPage"):
+                    pg = calls[-1][1]["_applicationSearchPage"][0]
+                    return Resp(full if pg == "1" else card("LAST"))
+                return Resp(full)
+
+        with patch.object(lookup.urllib.request, "build_opener", return_value=Opener()):
+            permits, errors = lookup.search_smartgov("normandy park", "address", "801 SW 174th St")
+        self.assertEqual(len(permits), 21)
+        self.assertEqual([c[1]["_applicationSearchPage"][0] for c in calls if c[1]], ["0", "1", "2"])
+        self.assertTrue(all(c[0].endswith("/SearchPage") for c in calls[2:]))
+        self.assertEqual(errors, [])
+
+    def test_shoreline_enrichment_fills_newest_only(self):
+        permits = [{"permit_number": f"ROW26-{i:04d}", "status": "", "description": "",
+                    "applied_date": f"2026-01-{i+1:02d}", "issued_date": None,
+                    "finaled_date": None, "expires_date": None, "portal": "x"}
+                   for i in range(25)]
+        with patch.object(lookup, "_shoreline_detail",
+                          side_effect=lambda n: {"status": "ISSUED", "description": "d", "expires_date": "2026-10-12"}) as det:
+            out = lookup._shoreline_enrich(permits)
+        self.assertEqual(det.call_count, 20)                              # SHORELINE_DETAIL_LIMIT
+        newest = max(out, key=lambda p: p["applied_date"])
+        self.assertEqual(newest["status"], "ISSUED")
+        self.assertIn("activityNo=", newest["portal"])
+        oldest = min(out, key=lambda p: p["applied_date"])
+        self.assertEqual(oldest["status"], "")                             # beyond the limit, untouched
+
+    def test_shoreline_detail_parses_labels(self):
+        body = ('<span id="cplMain_ctl07_lblPermitStatus">ISSUED</span>'
+                '<span id="cplMain_ctl07_lblPermitDesc">Replace &amp; repair</span>'
+                '<span id="cplMain_ctl07_lblPermitIssuedDate">4/15/2026</span>'
+                '<span id="cplMain_ctl07_lblPermitExpirationDate">10/12/2026</span>')
+        with patch.object(lookup.urllib.request, "urlopen") as uo:
+            uo.return_value.read.return_value = body.encode()
+            d = lookup._shoreline_detail("ROW26-0686")
+        self.assertEqual(d, {"status": "ISSUED", "description": "Replace & repair",
+                             "issued_date": "2026-04-15", "expires_date": "2026-10-12"})

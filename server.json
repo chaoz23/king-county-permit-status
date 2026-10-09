@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.chaoz23/king-county-permit-status",
   "description": "Live permit history + status for any King County, WA address, parcel or permit number. Read-only.",
   "version": "1.0.0",

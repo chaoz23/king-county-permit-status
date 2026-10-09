@@ -6,7 +6,7 @@ network; Caddy gets one more site block.
 
 ## One-time setup (droplet owner)
 
-1. **DNS** — add an A record `permits-api.secondlandings.com → <droplet IP>`.
+1. **DNS** — add an A record `permits-api.secondlandings.ai → <droplet IP>`.
 2. **Checkout** on the droplet:
    ```bash
    git clone https://github.com/chaoz23/king-county-permit-status /opt/king-county-permit-status
@@ -18,7 +18,7 @@ network; Caddy gets one more site block.
 4. **Start**:
    ```bash
    cd /opt/king-county-permit-status && docker compose up -d --build
-   curl -s https://permits-api.secondlandings.com/healthz
+   curl -s https://permits-api.secondlandings.ai/healthz
    ```
 5. **Redeploys from GitHub** — reuse inkcheck's deploy key. In this repo's
    Settings → Secrets add `DROPLET_SSH_KEY`, `DROPLET_HOST`, `DROPLET_USER`
@@ -27,8 +27,8 @@ network; Caddy gets one more site block.
 
 ## After it's live
 
-- Smoke: `curl 'https://permits-api.secondlandings.com/api/lookup?q=1817+Morris+Ave+S,+Renton+WA'`
-- MCP: point any Streamable-HTTP client at `https://permits-api.secondlandings.com/mcp`
+- Smoke: `curl 'https://permits-api.secondlandings.ai/api/lookup?q=1817+Morris+Ave+S,+Renton+WA'`
+- MCP: point any Streamable-HTTP client at `https://permits-api.secondlandings.ai/mcp`
   (no auth). `server.json` is the MCP Registry manifest — publish with
   `mcp-publisher` once the URL answers; list on Glama / Docker MCP registry the same way.
 - Rate limits are per client IP (30/min) and global (300/min); tune via env in `compose.yaml`.

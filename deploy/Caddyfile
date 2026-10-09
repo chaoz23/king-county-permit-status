@@ -1,4 +1,4 @@
-{$KCPS_HOST:permits-api.secondlandings.com} {
+{$KCPS_HOST:permits-api.secondlandings.ai} {
   encode zstd gzip
   reverse_proxy permits:8080
 

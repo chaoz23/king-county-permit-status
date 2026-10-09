@@ -10,7 +10,7 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://permits-api.secondlandings.com/mcp"
+      "url": "https://permits-api.secondlandings.ai/mcp"
     }
   ]
 }

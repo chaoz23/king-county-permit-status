@@ -464,6 +464,81 @@ KC_GEOCODER_URL = (
     "/Address/KingCo_ParcelAddress_locator/GeocodeServer/findAddressCandidates"
 )
 
+# --- King County Assessor permit-history index ------------------------------
+# Every parcel's eRealProperty page carries a PERMIT HISTORY table: permit
+# number, description, type, issue date, value, *issuing jurisdiction*. Cities
+# report their issued permits to the Assessor for valuation, so this is the
+# one county-wide index that covers the cities with no public portal (Kent,
+# the PermitTrax cluster, OpenGov, Tukwila). It is an index, not a live feed:
+# no status, only issued permits, and not every permit (Renton shows 4 of 24).
+# Credit: surfaced by a separate Kent research pass on 2026-10-09.
+ASSESSOR_DETAIL_URL = "https://blue.kingcounty.com/Assessor/eRealProperty/Detail.aspx?ParcelNbr="
+ASSESSOR_LABEL = "King County Assessor (issued-permit index)"
+
+
+def _assessor_date(raw: str) -> str | None:
+    m = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", raw or "")
+    return f"{m.group(3)}-{int(m.group(1)):02d}-{int(m.group(2)):02d}" if m else None
+
+
+def _parse_assessor(body: str, pin: str) -> list[dict]:
+    """PERMIT HISTORY table → shared schema. Columns: Permit Number,
+    Description, Type, Issue Date, Permit Value, Issuing Jurisdiction,
+    Reviewed Date (blank cells are dropped by the page, so map by shape)."""
+    i = body.upper().find("PERMIT HISTORY")
+    if i < 0:
+        return []
+    seg = body[i:]
+    j = seg.upper().find("HOME IMPROVEMENT EXEMPTION")
+    seg = seg[:j] if j > 0 else seg[:20000]
+    permits = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", seg, re.S):
+        cells = [html_unescape(re.sub(r"<[^>]+>", "", c)).strip()
+                 for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        cells = [c for c in cells if c and c != "\xa0"]
+        if len(cells) < 3 or cells[0].lower().startswith("permit number"):
+            continue
+        dates = [k for k, c in enumerate(cells) if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", c)]
+        if not dates:
+            continue
+        d = dates[0]                       # issue date; a later one is "reviewed"
+        number = cells[0]
+        ptype = cells[d - 1] if d >= 2 else ""
+        description = " ".join(cells[1:d - 1]).rstrip(", ").strip() if d >= 3 else ""
+        rest = cells[d + 1:]
+        value = next((c for c in rest if c.startswith("$")), "")
+        juris = next((c for c in rest if c and not c.startswith("$")
+                      and not re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", c)), "")
+        permits.append({
+            "permit_number": number,
+            "type": ptype,
+            "status": "",                  # the index carries no status
+            "description": (description + (f" (value {value})" if value and value != "$0" else "")).strip(),
+            "address": "",
+            "jurisdiction": juris.title() if juris else "King County",
+            "applied_date": None,
+            "issued_date": _assessor_date(cells[d]),
+            "finaled_date": None,
+            "expires_date": None,
+            "portal": ASSESSOR_DETAIL_URL + pin,
+        })
+    return permits
+
+
+def search_assessor(pin: str) -> tuple[list[dict], list[str]]:
+    """Issued-permit history for a 10-digit PIN from the Assessor's parcel page."""
+    pin = re.sub(r"\D", "", pin or "")
+    if len(pin) != 10:
+        return [], []
+    try:
+        body = urllib.request.urlopen(urllib.request.Request(
+            ASSESSOR_DETAIL_URL + pin, headers={"User-Agent": "Mozilla/5.0"}),
+            timeout=30).read().decode("utf-8", "replace")
+    except Exception as error:
+        return [], [str(error)]
+    return _parse_assessor(body, pin), []
+
+
 # --- Jurisdiction from geometry (#39) --------------------------------------
 # The mailing city on an address is not the permitting authority: "Kent, WA"
 # addresses sit in unincorporated King County, and Milton/Pacific/Auburn
@@ -1674,6 +1749,7 @@ def dedup_key(permit: dict) -> tuple[str, str]:
 
 def enrich_permit(permit: dict) -> dict:
     """Add the provenance/convenience fields agents act on (additive)."""
+    permit.setdefault("portal", None)      # MBP/L&I records carry no per-record URL
     permit["is_open"] = is_open_status(permit.get("status"), permit.get("finaled_date"))
     permit["record_url"] = record_url(permit)
     return permit
@@ -1835,6 +1911,12 @@ def lookup(raw_input: str) -> dict:
                             [f"{display_city(c)} LAMA: {e}" for e in er])
                 thunks.append(t_lama)
 
+        if input_type == "parcel":          # county-wide issued-permit index
+            def t_assessor():
+                p, er = search_assessor(value)
+                return ([ASSESSOR_LABEL], p, [f"Assessor: {e}" for e in er])
+            thunks.append(t_assessor)
+
         def _safe(fn):
             try:
                 return fn()
@@ -1983,6 +2065,15 @@ def lookup(raw_input: str) -> dict:
         searched_jurisdictions.append(f"{display_city(city)} (LAMA)")
         errors.extend(f"{display_city(city)} LAMA: {error}" for error in lm_errors)
 
+    # King County Assessor index — any address that resolved to a KC parcel.
+    # The only source for the 19 cities without a public portal; for live
+    # cities it is a cheap cross-check that dedups against the live records.
+    if input_type == "address" and resolved_parcel:
+        as_permits, as_errors = search_assessor(resolved_parcel)
+        all_permits.extend(as_permits)
+        searched_jurisdictions.append(ASSESSOR_LABEL)
+        errors.extend(f"Assessor: {error}" for error in as_errors)
+
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical
     lni_permits = []
@@ -2040,7 +2131,8 @@ def lookup(raw_input: str) -> dict:
             unique.append(p)
 
     # Sort by applied date (newest first)
-    unique.sort(key=lambda p: p["applied_date"] or "", reverse=True)
+    # Index records carry only an issue date; sort them alongside the rest.
+    unique.sort(key=lambda p: p["applied_date"] or p.get("issued_date") or "", reverse=True)
     for p in unique:
         enrich_permit(p)
 

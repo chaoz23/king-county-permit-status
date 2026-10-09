@@ -41,6 +41,8 @@ def health_cell(city, on_mbp, dedicated, health):
     keys = list(HEALTH_KEYS.get(key, [])) if dedicated else []
     if on_mbp:
         keys.append(f"mbp:{key}")
+    if not keys and key != "king county":
+        keys = ["assessor"]              # indexed city: the Assessor probe backs its row
     sources = health.get("sources") or {}
     outcomes = [sources[k]["outcome"] for k in keys if k in sources]
     if not outcomes:
@@ -77,6 +79,7 @@ def display_name(city):
 
 CELL = {
     "yes": "✅",
+    "index": "🗂️ index",
     "lni": "➖ L&I",
     "gap": "⚠️ gap",
     "no": "🔴",
@@ -105,7 +108,7 @@ def classify(city, mbp, own_elec, health=None):
     elif on_mbp:
         source = "MyBuildingPermit"
     else:
-        source = "—"
+        source = "KC Assessor index"
 
     # electrical — verified against MBP feeds 2026-07-15 (see B7 in the epic):
     #   A city's own electrical permits live in its feed (MBP or a dedicated
@@ -121,17 +124,17 @@ def classify(city, mbp, own_elec, health=None):
     else:
         electrical = "gap"          # self-run electrical, no feed we search
 
-    building = "yes" if live_building else "no"
-    trade = "yes" if live_building else "no"       # mechanical / plumbing
-    landuse = "yes" if live_building else "no"
+    # Non-live cities still get issued-permit *history* (no status) from the
+    # King County Assessor's parcel index, which every city reports into.
+    building = "yes" if live_building else "index"
+    trade = "yes" if live_building else "index"    # mechanical / plumbing
+    landuse = "yes" if live_building else "index"
 
     # status
     if live_building:
         status = "🟢 Live"
-    elif electrical == "lni":
-        status = "🟡 Partial"       # only L&I electrical retrievable; rest is a portal link
     else:
-        status = "🔴 Fallback"      # link only
+        status = "🟠 Indexed"       # Assessor history + (L&I or gap) electrical; status needs the portal
 
     return {
         "city": display_name(city), "status": status, "source": source,
@@ -148,8 +151,9 @@ def render(rows, health=None):
            "Auto-generated from `routing_data.json` "
            "(`python3 scripts/gen_scorecard.py --write`). "
            "One row per King County city.", "",
-           "**Legend** — ✅ retrievable · ➖ L&I electrical only (2020+) · "
-           "⚠️ gap (city self-runs electrical, not yet integrated) · 🔴 portal link only",
+           "**Legend** — ✅ live (status + history) · 🗂️ index (issued-permit history from the "
+           "King County Assessor's parcel index — no status, not every permit) · ➖ L&I electrical only "
+           "(2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)",
            "",
            "**Health** = last weekly live probe of the city's source "
            "(`scripts/source_health.py`" + (f", {checked}" if checked else "") + "): "
@@ -158,7 +162,7 @@ def render(rows, health=None):
            "",
            "| City | Status | Source | Health | Building | Electrical | Mech/Plumb | Land Use |",
            "|---|---|---|---|---|---|---|---|"]
-    tally = {"🟢 Live": 0, "🟡 Partial": 0, "🔴 Fallback": 0}
+    tally = {"🟢 Live": 0, "🟠 Indexed": 0}
     for r in rows:
         tally[r["status"]] += 1
         out.append("| {city} | {status} | {source} | {h} | {b} | {e} | {t} | {l} |".format(
@@ -173,8 +177,7 @@ def render(rows, health=None):
     total = len(rows)
     out += ["",
             f"**Coverage:** {tally['🟢 Live']}/{total} live · "
-            f"{tally['🟡 Partial']}/{total} partial (L&I electrical only) · "
-            f"{tally['🔴 Fallback']}/{total} fallback. "
+            f"{tally['🟠 Indexed']}/{total} indexed (issued history via the Assessor; status needs the city portal). "
             "Plus **King County (unincorporated)** for county-level permits "
             "(septic, critical areas, grading).",
             "",
@@ -198,15 +201,15 @@ def render(rows, health=None):
 
 def render_summary(rows):
     """One-line coverage badge for the top of the README (kept in sync here)."""
-    tally = {"🟢 Live": 0, "🟡 Partial": 0, "🔴 Fallback": 0}
+    tally = {"🟢 Live": 0, "🟠 Indexed": 0}
     for r in rows:
         tally[r["status"]] += 1
     total = len(rows)
     return "\n".join([
         BEGIN_SUM, "",
-        f"**Coverage today:** 🟢 **{tally['🟢 Live']}/{total}** cities fully live · "
-        f"🟡 **{tally['🟡 Partial']}/{total}** electrical-only (via L&I) · "
-        f"🔴 **{tally['🔴 Fallback']}/{total}** portal-link fallback · plus "
+        f"**Coverage today:** 🟢 **{tally['🟢 Live']}/{total}** cities live (status + history) · "
+        f"🟠 **{tally['🟠 Indexed']}/{total}** indexed (issued-permit history from the King County "
+        "Assessor; current status needs the city portal, which `next_step` names) · plus "
         "unincorporated King County. See the coverage scorecard below for the "
         "per-city breakdown.", "",
         END_SUM,

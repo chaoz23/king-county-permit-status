@@ -17,16 +17,20 @@ _REAL_RESOLVE = lookup.resolve_location   # for tests of the resolver itself
 _GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
 _REAL_LAMA = lookup.search_lama            # for tests of the adapter itself
 _LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
+_REAL_ASSESSOR = lookup.search_assessor
+_ASSESSOR_PATCH = patch.object(lookup, "search_assessor", return_value=([], []))
 
 
 def setUpModule():
     _GEO_PATCH.start()
     _LAMA_PATCH.start()
+    _ASSESSOR_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
     _LAMA_PATCH.stop()
+    _ASSESSOR_PATCH.stop()
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +79,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "Redmond (EnerGov Civic Access)",
             "Woodinville (Accela)", "King County (Accela)",
             "Normandy Park (SmartGov)", "Carnation (SmartGov)",
+            "King County Assessor (issued-permit index)",
         ])
 
     def test_formatted_parcel_reaches_sources_as_digits(self):
@@ -161,6 +166,7 @@ class ParcelRoutingTests(unittest.TestCase):
             "Redmond (EnerGov Civic Access)",
             "Woodinville (Accela)", "King County (Accela)",
             "Normandy Park (SmartGov)", "Carnation (SmartGov)",
+            "King County Assessor (issued-permit index)",
         ])
 
     def test_duplicate_permits_from_sources_are_collapsed(self):
@@ -1814,3 +1820,98 @@ class AdapterHardeningTests(unittest.TestCase):
             d = lookup._shoreline_detail("ROW26-0686")
         self.assertEqual(d, {"status": "ISSUED", "description": "Replace & repair",
                              "issued_date": "2026-04-15", "expires_date": "2026-10-12"})
+
+
+ASSESSOR_HTML = """
+<table><tr><td>PERMIT HISTORY</td></tr></table>
+<table>
+<tr><td>Permit Number</td><td>Permit Description</td><td>Type</td><td>Issue Date</td><td>Permit Value</td><td>Issuing Jurisdiction</td><td>Reviewed Date</td></tr>
+<tr><td>UTL2025 1311</td><td></td><td>Access to HH 22225 for splicing.,</td><td></td><td>Other</td><td>4/29/2025</td><td>$0</td><td>KENT</td><td>&nbsp;</td></tr>
+<tr><td>CMAL-2223488</td><td></td><td>RE,</td><td></td><td>Other</td><td>9/19/2022</td><td>$100,000</td><td>KENT</td><td>9/19/2025</td></tr>
+<tr><td>9736</td><td></td><td></td><td></td><td>Building, New</td><td>11/15/1996</td><td>$400,000</td><td></td><td>&nbsp;</td></tr>
+</table>
+<div>HOME IMPROVEMENT EXEMPTION</div>
+"""
+
+
+class AssessorIndexTests(unittest.TestCase):
+    def test_parse_permit_history_rows(self):
+        permits = lookup._parse_assessor(ASSESSOR_HTML, "7759800010")
+        self.assertEqual([p["permit_number"] for p in permits], ["UTL2025 1311", "CMAL-2223488", "9736"])
+        p = permits[1]
+        self.assertEqual(p["jurisdiction"], "Kent")
+        self.assertEqual(p["type"], "Other")
+        self.assertEqual(p["issued_date"], "2022-09-19")
+        self.assertEqual(p["description"], "RE (value $100,000)")
+        self.assertEqual(p["status"], "")
+        self.assertEqual(p["portal"], lookup.ASSESSOR_DETAIL_URL + "7759800010")
+        self.assertEqual(permits[0]["description"], "Access to HH 22225 for splicing.")
+        self.assertEqual(permits[2]["jurisdiction"], "King County")   # pre-annexation rows have no issuer
+        self.assertEqual(permits[2]["type"], "Building, New")
+
+    def test_no_section_means_no_rows(self):
+        self.assertEqual(lookup._parse_assessor("<html>nothing</html>", "1"), [])
+
+    def test_search_assessor_requires_ten_digit_pin(self):
+        self.assertEqual(_REAL_ASSESSOR("123"), ([], []))
+        with patch.object(lookup.urllib.request, "urlopen") as uo:
+            uo.return_value.read.return_value = ASSESSOR_HTML.encode()
+            permits, errors = _REAL_ASSESSOR("775980-0010")
+        self.assertEqual(len(permits), 3)
+        self.assertIn("ParcelNbr=7759800010", uo.call_args[0][0].full_url)
+
+    def _stub(self):
+        for p in (
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ):
+            p.start(); self.addCleanup(p.stop)
+
+    def _loc(self, pin="7759800010"):
+        return {"matched_address": "x", "score": 100, "match_type": "point", "partial_match": False,
+                "street_number_snapped": False, "county": "king", "parcel_id": f"king:{pin}",
+                "pin": pin, "geocoder_city": "Kent", "jurisdiction": "Kent",
+                "jurisdiction_basis": "city-limits", "unincorporated": False}
+
+    def test_kent_address_gets_index_records_and_keeps_next_step(self):
+        self._stub()
+        rec = lookup._parse_assessor(ASSESSOR_HTML, "7759800010")
+        with patch.object(lookup, "resolve_location", return_value=self._loc()), \
+             patch.object(lookup, "search_assessor", return_value=(rec, [])) as asr:
+            result = lookup.lookup("22311 84th Ave S, Kent, WA 98032")
+        asr.assert_called_once_with("7759800010")
+        self.assertEqual(result["action"], "found")
+        self.assertEqual(result["permit_count"], 3)
+        self.assertIn(lookup.ASSESSOR_LABEL, result["searched"])
+        self.assertEqual(result["permits"][0]["permit_number"], "UTL2025 1311")   # sorted by issue date
+        self.assertIsNone(result["permits"][0]["is_open"])
+        self.assertEqual(result["next_step"]["city"], "Kent")                      # still points at the logs
+
+    def test_unresolved_address_skips_index(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=None), \
+             patch.object(lookup, "search_assessor", return_value=([], [])) as asr:
+            lookup.lookup("22311 84th Ave S, Kent, WA 98032")
+        asr.assert_not_called()
+
+    def test_parcel_query_includes_index_and_dedups_against_live(self):
+        self._stub()
+        live = [{"permit_number": "CMAL-2223488", "type": "Commercial", "status": "Finaled",
+                 "description": "re-roof", "address": "22311 84th Ave S", "jurisdiction": "Kent",
+                 "applied_date": "2022-09-01", "issued_date": "2022-09-19", "finaled_date": "2023-01-01",
+                 "expires_date": None, "portal": None}]
+        rec = lookup._parse_assessor(ASSESSOR_HTML, "7759800010")
+        with patch.object(lookup, "search_energov", return_value=live), \
+             patch.object(lookup, "search_shoreline", return_value=([], [])), \
+             patch.object(lookup, "search_energov_civicaccess", return_value=([], [])), \
+             patch.object(lookup, "search_accela", return_value=([], [])), \
+             patch.object(lookup, "search_smartgov", return_value=([], [])), \
+             patch.object(lookup, "search_assessor", return_value=(rec, [])) as asr:
+            result = lookup.lookup("7759800010")
+        asr.assert_called_once_with("7759800010")
+        nums = [p["permit_number"] for p in result["permits"]]
+        self.assertEqual(nums.count("CMAL-2223488"), 1)                  # live record wins, index copy dropped
+        self.assertEqual(next(p for p in result["permits"] if p["permit_number"] == "CMAL-2223488")["status"], "Finaled")
+        self.assertIn(lookup.ASSESSOR_LABEL, result["searched"])

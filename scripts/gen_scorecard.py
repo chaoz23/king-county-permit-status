@@ -151,8 +151,8 @@ def render(rows, health=None):
            "Auto-generated from `routing_data.json` "
            "(`python3 scripts/gen_scorecard.py --write`). "
            "One row per King County city.", "",
-           "**Legend** — ✅ live (status + history) · 🗂️ index (issued-permit history from the "
-           "King County Assessor's parcel index — no status, not every permit) · ➖ L&I electrical only "
+           "**Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history "
+           "from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only "
            "(2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)",
            "",
            "**Health** = last weekly live probe of the city's source "

@@ -27,9 +27,11 @@ services:
         max-size: 5m
         max-file: "3"
     networks:
-      - backend
+      - backend     # where inkcheck's Caddy reaches us (internal: no internet)
+      - egress      # outbound to the municipal portals — the lookups need it
 
 networks:
   backend:
     external: true
     name: ${BACKEND_NETWORK:-inkcheck_backend}
+  egress: {}

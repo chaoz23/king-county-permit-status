@@ -6,15 +6,24 @@ network; Caddy gets one more site block.
 
 ## One-time setup (droplet owner)
 
-1. **DNS** — add an A record `permits-api.secondlandings.ai → <droplet IP>`.
+1. **DNS** — add an A record `permits-api.secondlandings.ai → 64.23.172.250` at Porkbun.
+   `secondlandings.ai` has a wildcard pointing at Porkbun parking (207.207.210.x),
+   so the explicit record is required; verify with `dig +short permits-api.secondlandings.ai`.
 2. **Checkout** on the droplet:
    ```bash
    git clone https://github.com/chaoz23/king-county-permit-status /opt/king-county-permit-status
    ```
-3. **Caddy** — append `deploy/Caddyfile` to the droplet's Caddyfile (the
-   `KCPS_HOST` placeholder is the DNS name above), then reload Caddy. The
-   `permits` upstream resolves because both compose projects share the
-   `inkcheck_backend` network (override with `BACKEND_NETWORK=` if yours differs).
+3. **Caddy** — inkcheck's Caddy mounts `<inkcheck checkout>/deploy/Caddyfile`
+   read-only, so append our site block there and reload:
+   ```bash
+   cat /opt/king-county-permit-status/deploy/Caddyfile >> /root/inkcheck/deploy/Caddyfile
+   cd /root/inkcheck && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+   ```
+   (`/root/inkcheck` is inkcheck's default `APP_DIR`; adjust if it lives elsewhere.)
+   The `permits` upstream resolves because both compose projects share the
+   `inkcheck_backend` network (override with `BACKEND_NETWORK=` if yours differs);
+   our container also joins its own `egress` network for outbound portal traffic,
+   since `inkcheck_backend` is internal.
 4. **Start**:
    ```bash
    cd /opt/king-county-permit-status && docker compose up -d --build

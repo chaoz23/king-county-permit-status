@@ -105,9 +105,15 @@ MANUAL_PORTALS = {
     "north bend": {"vendor": "PermitTrax Citizens Connect",
                    "search_url": "https://northbend-wa.permittrax.com/",
                    "search_by": ["address", "permit"]},
-    "maple valley": {"vendor": "OpenGov ViewPoint",
-                     "search_url": "https://maplevalleywa.viewpointcloud.com/",
+    # OpenGov PLC: the API is clean JSON:API but every call is gated by
+    # Cloudflare Turnstile headers (see #21) — browser only. Address search
+    # must match the portal's own location record (house number + street).
+    "maple valley": {"vendor": "OpenGov PLC (Turnstile-gated; browser only)",
+                     "search_url": "https://maplevalleywa.portal.opengov.com/search",
                      "search_by": ["address", "permit"]},
+    "duvall": {"vendor": "OpenGov PLC (Turnstile-gated; browser only)",
+               "search_url": "https://duvallwa.portal.opengov.com/search",
+               "search_by": ["address", "permit"]},
     "tukwila": {"vendor": "ASP.gov (results require login)",
                 "search_url": "https://www.tukwilawa.gov/departments/community-development/",
                 "search_by": []},

@@ -1,5 +1,6 @@
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -72,3 +73,20 @@ class ScorecardHealthTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatusCensusTests(unittest.TestCase):
+    def test_pair_returns_rows_for_census(self):
+        rows = [{"status": "Issued"}, {"status": "Issued"}, {"status": "Finaled"}, {"status": ""}]
+        self.assertEqual(source_health._pair((rows, [])), (4, [], rows))
+        self.assertEqual(source_health._pair("Error: x"), (None, ["Error: x"], []))
+        self.assertEqual(source_health._pair(rows)[0], 4)
+
+    def test_run_probe_records_status_counts_and_verdicts(self):
+        rows = [{"status": "Issued"}, {"status": "Issued"}, {"status": "Finaled"}, {"status": ""}]
+        with unittest.mock.patch.dict(source_health.PROBES,
+                                      {"fake": ("Fake", lambda: source_health._pair((rows, [])))}):
+            key, r = source_health.run_probe("fake")
+        self.assertEqual(r["outcome"], "ok")
+        self.assertEqual(r["statuses"], {"Issued": {"n": 2, "is_open": True},
+                                         "Finaled": {"n": 1, "is_open": False}})

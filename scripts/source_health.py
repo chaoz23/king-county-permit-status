@@ -78,21 +78,22 @@ def classify(records: int | None, errors: list[str]) -> tuple[str, str]:
 # Each returns (records, errors). Queries are the same real ones qc_smoke.py
 # regresses against, so a drop to `empty` is a real signal.
 
-def _pair(result) -> tuple[int | None, list[str]]:
-    """Normalize the three adapter return shapes: list | str | (list, errors)."""
+def _pair(result) -> tuple[int | None, list[str], list[dict]]:
+    """Normalize the three adapter return shapes: list | str | (list, errors)
+    → (count, errors, rows). Rows feed the status-vocabulary census (#52)."""
     if isinstance(result, tuple):
         rows, errs = result
-        return len(rows), list(errs)
+        return len(rows), list(errs), list(rows)
     if isinstance(result, str):
-        return None, [result]
-    return len(result), []
+        return None, [result], []
+    return len(result), [], list(result)
 
 
 def probe_mbp(city: str):
     alive = refresh.mbp_backend_alive(city)
     if alive is None:
-        return None, []
-    return (1 if alive else 0), []
+        return None, [], []
+    return (1 if alive else 0), [], []
 
 
 PROBES = {
@@ -134,12 +135,20 @@ def run_probe(key: str) -> tuple[str, dict]:
     label, fn = PROBES[key]
     t0 = time.time()
     try:
-        records, errors = fn()
+        records, errors, rows = fn()
     except Exception as exc:  # a probe must never sink the sweep
-        records, errors = None, [f"{type(exc).__name__}: {exc}"]
+        records, errors, rows = None, [f"{type(exc).__name__}: {exc}"], []
     outcome, detail = classify(records, errors)
+    # Status-vocabulary census (#52): every distinct status string this source
+    # returned, with how is_open classifies it, so unknown words are visible.
+    statuses = {}
+    for r in rows:
+        st = (r.get("status") or "").strip()
+        if st:
+            statuses.setdefault(st, {"n": 0, "is_open": lookup.is_open_status(st)})["n"] += 1
     return key, {"label": label, "outcome": outcome, "records": records,
-                 "detail": detail, "elapsed_ms": int((time.time() - t0) * 1000)}
+                 "detail": detail, "elapsed_ms": int((time.time() - t0) * 1000),
+                 "statuses": dict(sorted(statuses.items(), key=lambda kv: -kv[1]["n"]))}
 
 
 def sweep() -> dict:
@@ -168,7 +177,12 @@ def sweep() -> dict:
         if prev and prev != r["outcome"]:
             r["changed_from"] = prev
     summary = {o: sum(1 for r in results.values() if r["outcome"] == o) for o in OUTCOMES}
+    vocab = {}
+    for k, r in results.items():
+        for st, info in r.get("statuses", {}).items():
+            vocab.setdefault(st, {"is_open": info["is_open"], "sources": []})["sources"].append(k)
     return {
+        "status_vocabulary": dict(sorted(vocab.items())),
         "checked_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "summary": {k: v for k, v in summary.items() if v},
         "sources": {k: results[k] for k in keys},

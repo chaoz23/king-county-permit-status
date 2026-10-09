@@ -1915,3 +1915,38 @@ class AssessorIndexTests(unittest.TestCase):
         self.assertEqual(nums.count("CMAL-2223488"), 1)                  # live record wins, index copy dropped
         self.assertEqual(next(p for p in result["permits"] if p["permit_number"] == "CMAL-2223488")["status"], "Finaled")
         self.assertIn(lookup.ASSESSOR_LABEL, result["searched"])
+
+
+class StatusVocabularyTests(unittest.TestCase):
+    """#52 — every status string the weekly census has seen, with the verdict
+    we want. Add a line whenever source_health.json shows a new word."""
+    CENSUS = {
+        # closed / nothing active
+        "Finaled": False, "Permit Finalized": False, "Closed": False, "CLOSED": False,
+        "Complete": False, "Completed": False, "Permit Completed": False,
+        "Inspections Complete": False, "Expired": False, "Permit Expired": False,
+        "Withdrawn": False, "Canceled": False, "Inactive": False,
+        "ARCHIVED": False, "RECORDS ARCHIVED": False, "DESTROYED": False,
+        "Not Required": False,
+        # open / in progress
+        "Issued": True, "ISSUED": True, "Permit Issued": True, "Open": True,
+        "Pending": True, "Payment Pending": True, "Under Review": True,
+        "Ready to Issue": True, "Decision Issued": True, "Corrections Required": True,
+        "On Hold": True, "Violations": True, "Pass": True, "Fail": True,
+        "Awaiting Completeness Review": True, "Completeness Check": True,
+        "Application Incomplete": True, "Expiration Notice": True,
+        "Cancel - Reinspect": True,
+    }
+
+    def test_every_census_status_classifies_as_intended(self):
+        for status, want in self.CENSUS.items():
+            self.assertEqual(lookup.is_open_status(status), want, status)
+
+    def test_committed_census_has_no_unknown_words(self):
+        """source_health.json's vocabulary must be covered here, so a new
+        vendor word shows up as a test failure, not a silent misclassification."""
+        import json
+        with open(REPO_ROOT / "source_health.json") as f:
+            vocab = json.load(f).get("status_vocabulary", {})
+        unknown = sorted(s for s in vocab if s not in self.CENSUS)
+        self.assertEqual(unknown, [], f"add these to CENSUS with a verdict: {unknown}")

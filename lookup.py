@@ -112,11 +112,14 @@ MANUAL_PORTALS = {
     "milton": {"vendor": "PermitTrax Citizens Connect",
                "search_url": "https://milton_wa.permittrax.com/citizen/Home/MILTON_L/PERMIT",
                "search_by": ["address", "permit"]},
+    # Enumclaw / North Bend: the tenant+module path (DESMON_L/PBPW-style) is
+    # only issued over SignalR, so /citizen — the app's real landing page — is
+    # the deepest link we can give without guessing (#53).
     "enumclaw": {"vendor": "PermitTrax Citizens Connect",
-                 "search_url": "https://enumclaw_wa.permittrax.com/",
+                 "search_url": "https://enumclaw_wa.permittrax.com/citizen",
                  "search_by": ["address", "permit"]},
     "north bend": {"vendor": "PermitTrax Citizens Connect",
-                   "search_url": "https://northbend-wa.permittrax.com/",
+                   "search_url": "https://northbend-wa.permittrax.com/citizen",
                    "search_by": ["address", "permit"]},
     # OpenGov PLC: the API is clean JSON:API but every call is gated by
     # Cloudflare Turnstile headers (see #21) — browser only. Address search
@@ -1698,9 +1701,17 @@ CITE_AS = "King County Permit Status (github.com/chaoz23/king-county-permit-stat
 
 # Status words that mean a permit is no longer active, across every vendor
 # vocabulary we normalize (MBP, EnerGov, Accela, SmartGov, Socrata, ArcGIS, L&I).
+# Tuned against the live census the weekly sweep records in
+# source_health.json → status_vocabulary (#52). Order matters: the "still
+# open" exceptions are checked before the closed words.
 _CLOSED_STATUS = re.compile(
     r"final|complet|closed|expired|withdrawn|cancel|void|denied|revoked|"
-    r"abandon|inactive|rejected", re.I)
+    r"abandon|inactive|rejected|archived|destroyed|not required", re.I)
+_OPEN_EXCEPTIONS = re.compile(
+    r"incomplete|completeness|expiration notice|reinspect", re.I)
+#   "Application Incomplete", "Awaiting Completeness Review", "Completeness
+#   Check" (intake, Bellevue/SmartGov), MBP "Expiration Notice" (warning, still
+#   live), Renton "Cancel - Reinspect" (an inspection was cancelled, not the permit)
 
 
 def is_open_status(status: str | None, finaled_date: str | None = None) -> bool | None:
@@ -1710,8 +1721,8 @@ def is_open_status(status: str | None, finaled_date: str | None = None) -> bool 
         return False
     if not status or not status.strip():
         return None
-    if re.search(r"incomplete|expiration notice", status, re.I):
-        return True     # "Application Incomplete" / MBP "Expiration Notice" are still live
+    if _OPEN_EXCEPTIONS.search(status):
+        return True
     return not _CLOSED_STATUS.search(status)
 
 

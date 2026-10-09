@@ -1286,11 +1286,13 @@ class NextStepTests(unittest.TestCase):
         self.assertEqual(ns["kind"], "manual_portal_search")
         self.assertEqual(ns["reason"], "no_feed")
         self.assertEqual(ns["city"], "Kent")
-        self.assertEqual(ns["portal_url"], "https://permitstatus.kentwa.gov/")
-        self.assertEqual(ns["search_by"], ["address", "permit"])
+        # Kent has no public search: next_step points at the monthly XLSX logs
+        self.assertEqual(ns["portal_url"], "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/permit-logs")
+        self.assertEqual(ns["search_by"], [])
         self.assertEqual(ns["query_type"], "address")
         self.assertIn("220 4th Ave S", ns["query"])
         self.assertFalse(ns["covers_electrical"])    # Kent electrical is L&I, so already searched
+        self.assertIn("XLSX", ns["hint"])
         self.assertIn("permitstatus.kentwa.gov", ns["hint"])
         # prose note is unchanged and carries no leaked internal key
         self.assertNotIn("reason", result["separate_portal"])

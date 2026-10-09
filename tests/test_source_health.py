@@ -56,7 +56,10 @@ class ScorecardHealthTests(unittest.TestCase):
         self.assertEqual(gen_scorecard.health_cell("renton", False, True, self.HEALTH), "✅")
         # Bellevue is backed by Open Data (ok) and MBP (empty) → empty wins
         self.assertEqual(gen_scorecard.health_cell("bellevue", True, True, self.HEALTH), "⚪")
-        self.assertEqual(gen_scorecard.health_cell("black diamond", False, True, self.HEALTH), "⛔")
+        # unincorporated KC row is backed by MBP-KC + KC Accela; Accela blocked wins
+        self.assertEqual(gen_scorecard.health_cell("king county", True, True, self.HEALTH), "⛔")
+        # Black Diamond has no live source any more (#47)
+        self.assertEqual(gen_scorecard.health_cell("black diamond", False, False, self.HEALTH), "—")
 
     def test_no_probe_means_dash(self):
         self.assertEqual(gen_scorecard.health_cell("kent", False, False, self.HEALTH), "—")

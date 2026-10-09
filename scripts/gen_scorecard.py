@@ -19,7 +19,8 @@ HEALTH = os.path.join(ROOT, "source_health.json")   # written by scripts/source_
 # Which source_health.json probe(s) back each dedicated city's row.
 HEALTH_KEYS = {"renton": ["renton"], "seattle": ["seattle"], "bellevue": ["bellevue"],
                "shoreline": ["shoreline"], "redmond": ["redmond"],
-               "woodinville": ["accela:WOODINVILLE"], "black diamond": ["accela:kingco"],
+               "woodinville": ["accela:WOODINVILLE"],
+               "king county": ["accela:kingco"],      # unincorporated row: MBP-KC + KC Accela
                "normandy park": ["smartgov:normandy park"],
                "carnation": ["smartgov:carnation"],
                "seatac": ["lama:seatac"]}
@@ -60,7 +61,6 @@ DEDICATED = {"renton": "Renton (EnerGov)",
              "shoreline": "Shoreline (eTRAKiT)",
              "redmond": "Redmond (EnerGov Civic Access)",
              "woodinville": "Woodinville (Accela)",
-             "black diamond": "Black Diamond (via King County)",
              "normandy park": "Normandy Park (SmartGov)",
              "carnation": "Carnation (SmartGov)",
              "seatac": "SeaTac (LAMA)"}
@@ -167,8 +167,8 @@ def render(rows, health=None):
             t=CELL[r["trade"]], l=CELL[r["landuse"]]))
     # County-level row (unincorporated King County): building/septic/critical-areas
     # via the MyBuildingPermit "King County" jurisdiction; electrical via L&I.
-    kc_health = health_cell("king county", True, False, health)
-    out.append("| _King County (unincorp.)_ | 🟢 Live | MyBuildingPermit (King County) "
+    kc_health = health_cell("king county", True, True, health)
+    out.append("| _King County (unincorp.)_ | 🟢 Live | MyBuildingPermit (King County) + KC Accela "
                f"| {kc_health} | ✅ | ➖ L&I | ✅ | ✅ |")
     total = len(rows)
     out += ["",

@@ -1106,7 +1106,8 @@ class AccelaSearchTests(unittest.TestCase):
 
     def test_agency_config_shapes(self):
         self.assertEqual(lookup.ACCELA_PORTALS["woodinville"], "WOODINVILLE")
-        self.assertEqual(lookup.ACCELA_PORTALS["black diamond"], "kingco")
+        self.assertNotIn("black diamond", lookup.ACCELA_PORTALS)   # #47: BD is PermitTrax, not KC Accela
+        self.assertEqual(lookup.ACCELA_UNINCORPORATED_AGENCY, "kingco")
 
 
 class SmartGovSearchTests(unittest.TestCase):
@@ -1641,3 +1642,54 @@ class LamaSearchTests(unittest.TestCase):
             r = lookup.lookup("7222000353")
             lama.assert_not_called()
             self.assertNotIn("SeaTac (LAMA)", r["searched"])
+
+
+class UnincorporatedAccelaRoutingTests(unittest.TestCase):
+    """#47: KC's Accela agency serves unincorporated KC, not Black Diamond."""
+
+    def _stub(self):
+        for p in (
+            patch.object(lookup, "get_session", return_value=(object(), "tok")),
+            patch.object(lookup, "search_permits", return_value=[]),
+            patch.object(lookup, "search_bellevue", return_value=[]),
+            patch.object(lookup, "search_lni", return_value=([], [])),
+        ):
+            p.start(); self.addCleanup(p.stop)
+
+    def _loc(self, name, uninc):
+        return {"matched_address": "x", "score": 100, "match_type": "point", "partial_match": False,
+                "street_number_snapped": False, "county": "king", "parcel_id": "king:3223039103",
+                "pin": "3223039103", "geocoder_city": None, "jurisdiction": name,
+                "jurisdiction_basis": "city-limits", "unincorporated": uninc}
+
+    def test_unincorporated_address_searches_kc_accela(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=self._loc("King County", True)), \
+             patch.object(lookup, "search_accela", return_value=([], [])) as acc:
+            result = lookup.lookup("13205 Vashon Hwy SW, Vashon WA")
+        acc.assert_called_once_with("kingco", "address", "13205 Vashon Hwy SW, Vashon WA", "King County")
+        self.assertIn("King County (Accela)", result["searched"])
+
+    def test_black_diamond_is_fallback_not_accela(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=self._loc("Black Diamond", False)), \
+             patch.object(lookup, "search_accela", return_value=([], [])) as acc:
+            result = lookup.lookup("33230 293rd Ave SE, Black Diamond WA")
+        acc.assert_not_called()
+        self.assertEqual(result["separate_portal"]["city"], "Black Diamond")
+        self.assertEqual(result["next_step"]["vendor"], "PermitTrax Citizens Connect")
+        self.assertIn("King County", result["searched"])          # county-level permits still searched
+
+
+class ParcelAddrTypeTests(unittest.TestCase):
+    def test_parcel_candidate_counts_as_exact_point(self):
+        geo = {"candidates": [{"address": "1823039057, 13205 VASHON HWY SW, WA", "score": 99,
+                               "location": {"x": 1.0, "y": 2.0},
+                               "attributes": {"Addr_type": "Parcel", "PIN": "1823039057",
+                                              "Subregion": "KING", "City": "", "AddNum": "13205"}}]}
+        poly = {"features": [{"attributes": {"NAME": "King County", "UNINC": 1}}]}
+        with patch.object(lookup, "_arcgis_json", side_effect=[geo, poly]):
+            loc = _REAL_RESOLVE("13205 Vashon Hwy SW, Vashon WA")
+        self.assertEqual(loc["match_type"], "point")
+        self.assertEqual(loc["parcel_id"], "king:1823039057")
+        self.assertTrue(loc["unincorporated"])

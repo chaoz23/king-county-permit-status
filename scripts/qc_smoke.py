@@ -46,7 +46,8 @@ CASES = [
     ("real/Shoreline",   "15332 Aurora Ave N, Shoreline WA",    found_in("Shoreline")),
     ("real/Redmond",     "16080 NE 85th St, Redmond WA 98052",  found_in("Redmond")),
     ("real/Woodinville", "13206 NE 201st Ct, Woodinville WA",   found_in("Woodinville")),
-    ("real/BlackDiamond","33230 293rd Ave SE, Black Diamond WA",found_in("King County")),
+    ("real/Vashon(unincorp)","13205 Vashon Hwy SW, Vashon WA",  found_in("King County (Accela)")),
+    ("fallback/BlackDiamond","33230 293rd Ave SE, Black Diamond WA", fallback_for("Black Diamond")),
     ("real/Auburn(MBP)", "25 W Main St, Auburn WA 98001",       found_in("Auburn")),
     ("real/SeaTac",      "18740 International Blvd, SeaTac WA", found_in("SeaTac")),
     # --- REAL parcels / permit numbers ---

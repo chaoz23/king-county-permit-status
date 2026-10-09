@@ -52,7 +52,7 @@ JURIS_BY_NAME = {v.lower(): k for k, v in JURISDICTIONS.items()}
 SEPARATE_PORTALS = {
     "algona": "https://www.algonawa.gov/",
     "beaux arts village": "https://beauxarts-wa.gov/",
-    "black diamond": "https://www.ci.blackdiamond.wa.us/",
+    "black diamond": "https://www.blackdiamondwa.gov/permits",
     "carnation": "https://www.carnationwa.gov/",
     "clyde hill": "https://www.clydehill.org/",
     "duvall": "https://www.duvallwa.gov/",
@@ -98,6 +98,14 @@ MANUAL_PORTALS = {
     "des moines": {"vendor": "PermitTrax Citizens Connect",
                    "search_url": "https://desmoines-wa.permittrax.com/citizen/Home/DESMON_L/PBPW",
                    "search_by": ["address", "permit"]},
+    "black diamond": {"vendor": "PermitTrax Citizens Connect",
+                      "search_url": "https://www.blackdiamondwa.gov/permits",
+                      "search_by": [],
+                      "hint": ("Black Diamond issues its own permits through a PermitTrax "
+                               "\"Citizen's Connect\" portal linked from "
+                               "https://www.blackdiamondwa.gov/permits (account required; "
+                               "no public HTTP search). County-level permits for the parcel "
+                               "are already included from MyBuildingPermit King County.")},
     "covington": {"vendor": "PermitTrax Citizens Connect",
                   "search_url": "https://covington-wa.permittrax.com/citizen/Home/COVWA_L/PERMIT",
                   "search_by": ["address", "permit"]},
@@ -474,7 +482,9 @@ KC_STATE_PLANE_WKID = "2926"
 # Polygon NAME → our routing key where they differ.
 CITY_LIMITS_NAME_MAP = {"beaux arts": "beaux arts village"}
 # Geocoder Addr_type → how much of the address was actually matched.
-_MATCH_TYPE = {"PointAddress": "point", "StreetAddress": "interpolated",
+_MATCH_TYPE = {"PointAddress": "point", "Subaddress": "point",
+               "Parcel": "point",          # parcel-address match carries the PIN (Vashon)
+               "StreetAddress": "interpolated",
                "StreetName": "street", "Locality": "locality"}
 
 
@@ -1145,13 +1155,16 @@ def search_energov_civicaccess(city: str, input_type: str,
 
 # Accela Citizen Access portals (aca-prod.accela.com). The public "global
 # search" is a plain GET returning an HTML grid — no session or VIEWSTATE.
-# Reusable across agencies via config. Cities that contract permitting to King
-# County resolve to the "kingco" agency (their permits live in KC's system).
+# Reusable across agencies via config. The "kingco" agency is King County's
+# own system for *unincorporated* addresses — it carries pre-MBP history,
+# enforcement and electrical records MBP-KC lacks (Vashon: +8–10 per address).
+# It does NOT serve Black Diamond (0 rows for every BD address/permit; #47) —
+# Black Diamond runs its own PermitTrax "Citizen's Connect" portal (#18).
 ACCELA_HOST = "https://aca-prod.accela.com"
 ACCELA_PORTALS = {            # city -> Accela agency code
     "woodinville": "WOODINVILLE",
-    "black diamond": "kingco",
 }
+ACCELA_UNINCORPORATED_AGENCY = "kingco"
 ACCELA_AGENCY_LABEL = {"WOODINVILLE": "Woodinville", "kingco": "King County"}
 
 
@@ -1686,7 +1699,9 @@ def lookup(raw_input: str) -> dict:
                         [f"{c.title()} EnerGov: {e}" for e in er])
             thunks.append(t_civic)
 
-        for _ag in sorted(set(ACCELA_PORTALS.values())):
+        # Every Accela agency, including KC's unincorporated one: a bare
+        # parcel/permit number has no city to route on.
+        for _ag in sorted(set(ACCELA_PORTALS.values()) | {ACCELA_UNINCORPORATED_AGENCY}):
             def t_accela(a=_ag):
                 label = ACCELA_AGENCY_LABEL.get(a, a)
                 p, er = search_accela(a, input_type, value, label)
@@ -1833,6 +1848,15 @@ def lookup(raw_input: str) -> dict:
         all_permits.extend(ac_permits)
         searched_jurisdictions.append(f"{city.title()} (Accela)")
         errors.extend(f"{city.title()} Accela: {error}" for error in ac_errors)
+    elif input_type == "address" and (unincorporated_kc or not city):
+        # Unincorporated King County (polygon-confirmed), or no city at all
+        # (already fanning out everywhere): KC's own Accela agency on top of
+        # MBP-KC — it holds the older and non-building county records.
+        ac_permits, ac_errors = search_accela(
+            ACCELA_UNINCORPORATED_AGENCY, input_type, value, "King County")
+        all_permits.extend(ac_permits)
+        searched_jurisdictions.append("King County (Accela)")
+        errors.extend(f"King County Accela: {error}" for error in ac_errors)
 
     # SmartGov (Paladin/GXA) — Normandy Park, Carnation.
     if input_type == "address" and city in SMARTGOV_PORTALS:

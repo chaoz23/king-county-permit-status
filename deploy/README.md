@@ -16,10 +16,10 @@ network; Caddy gets one more site block.
 3. **Caddy** — inkcheck's Caddy mounts `<inkcheck checkout>/deploy/Caddyfile`
    read-only, so append our site block there and reload:
    ```bash
-   cat /opt/king-county-permit-status/deploy/Caddyfile >> /root/inkcheck/deploy/Caddyfile
-   cd /root/inkcheck && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+   cat /opt/king-county-permit-status/deploy/Caddyfile >> /opt/inkcheck/deploy/Caddyfile
+   cd /opt/inkcheck && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
    ```
-   (`/root/inkcheck` is inkcheck's default `APP_DIR`; adjust if it lives elsewhere.)
+   (`/opt/inkcheck` is inkcheck's default `APP_DIR`; adjust if it lives elsewhere.)
    The `permits` upstream resolves because both compose projects share the
    `inkcheck_backend` network (override with `BACKEND_NETWORK=` if yours differs);
    our container also joins its own `egress` network for outbound portal traffic,

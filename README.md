@@ -104,7 +104,7 @@ Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vend
 | Redmond EnerGov Civic Access (live API) | All Redmond permit types including electrical, for address, parcel, and permit-number searches |
 | Accela Citizen Access (live) | Woodinville, and King County's own agency for unincorporated addresses (older history, enforcement and electrical records that MyBuildingPermit lacks), for address, parcel, and permit-number searches |
 | SmartGov (live) | Normandy Park and Carnation, for address, parcel, and permit-number searches |
-| King County Assessor parcel index | Issued-permit history (number, type, description, issue date, value, **issuing city**) for every King County parcel — the only source for the 19 cities without a public portal. No status, not every permit; address queries use the geocoded parcel, parcel queries use it directly |
+| King County Assessor parcel index | Issued-permit history (number, type, description, issue date, value, **issuing city**) for every King County parcel — the only source for the 19 cities without a public portal. It is what cities report for *valuation*: building/remodel/addition permits (some electrical), dense since ~2023 and thin before, back to the late 1990s; never trade sub-permits or inspections, and no status. Address queries use the geocoded parcel, parcel queries use it directly |
 | LAMA (live) | SeaTac, for address and permit-number searches (incl. SeaTac's self-run electrical; parcel search not offered by the portal; capped at 200 newest per query) |
 | Shoreline eTRAKiT (live) | Building, mechanical/plumbing, and land-use permits for Shoreline address, parcel, and permit-number searches (status/description not exposed by the portal's search) |
 | WA State L&I | Electrical permits for cities not handling their own (2020+) |
@@ -115,7 +115,7 @@ Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vend
 
 Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --write`). One row per King County city.
 
-**Legend** — ✅ live (status + history) · 🗂️ index (issued-permit history from the King County Assessor's parcel index — no status, not every permit) · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)
+**Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)
 
 **Health** = last weekly live probe of the city's source (`scripts/source_health.py`, 2026-10-09): ✅ answered with records · ⚪ answered, zero rows for a known-good query · ⛔ blocked (403) · ❌ down · ❔ unchecked · — no live source
 

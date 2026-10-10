@@ -192,9 +192,11 @@ def render(rows, health=None):
             "",
             "> ℹ️ **Split-county cities:** Milton (mostly Pierce), Pacific and Auburn "
             "straddle the King/Pierce line. Each city issues its own permits for the "
-            "whole city, so the row above applies to both sides; only *county-level* "
-            "permits (septic, critical areas) differ — Pierce County's portal is not "
-            "searched. Parcel ids are county-namespaced (`king:…`) for this reason.",
+            "whole city, so a *live* row applies to both sides; but the 🗂️ Assessor index "
+            "is King County's, so for an **indexed** split city (Milton) only King-side "
+            "parcels have index rows — Pierce-side addresses get the portal pointer only. "
+            "Pierce County's portal is not searched. Parcel ids are county-namespaced "
+            "(`king:…` / `pierce:…`) for this reason.",
             "", END]
     return "\n".join(out)
 

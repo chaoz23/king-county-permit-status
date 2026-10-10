@@ -223,6 +223,21 @@ def main() -> int:
         except (OSError, ValueError) as exc:
             report["qc"] = {"error": f"no QC summary: {exc}"}
             print(f"QC smoke: no summary ({exc})")
+    if "--scorecard-qc" in sys.argv:
+        # Per-city scorecard conformance (scripts/qc_scorecard.py --json): does
+        # every README row still behave as claimed?
+        path = sys.argv[sys.argv.index("--scorecard-qc") + 1]
+        try:
+            with open(path) as f:
+                sc = json.load(f)
+            report["scorecard_qc"] = {
+                "tally": sc.get("tally"),
+                "failing": [c["city"] for c in sc.get("cities", []) if c.get("outcome") == "FAIL"],
+                "warning": [c["city"] for c in sc.get("cities", []) if c.get("outcome") == "WARN"],
+            }
+            print(f"Scorecard QC: {report['scorecard_qc']['tally']} failing={report['scorecard_qc']['failing']}")
+        except (OSError, ValueError) as exc:
+            report["scorecard_qc"] = {"error": f"no scorecard QC summary: {exc}"}
     if "--write" in sys.argv:
         with open(HEALTH_PATH, "w") as f:
             json.dump(report, f, indent=1, ensure_ascii=False)

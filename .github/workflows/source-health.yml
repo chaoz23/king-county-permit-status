@@ -24,8 +24,11 @@ jobs:
       - name: Live QC smoke (end-to-end routing; non-blocking)
         continue-on-error: true
         run: python scripts/qc_smoke.py --json qc_smoke.json
+      - name: Scorecard conformance QC (every city, live; non-blocking)
+        continue-on-error: true
+        run: python scripts/qc_scorecard.py --json qc_scorecard.json
       - name: Probe sources
-        run: python scripts/source_health.py --write --qc qc_smoke.json
+        run: python scripts/source_health.py --write --qc qc_smoke.json --scorecard-qc qc_scorecard.json
       - name: Regenerate scorecard
         run: python scripts/gen_scorecard.py --write
       - name: Commit if changed

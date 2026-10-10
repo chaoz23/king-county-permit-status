@@ -190,6 +190,26 @@
           },
           "street_number_snapped": {
             "type": "boolean"
+          },
+          "parcel_basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "address-point",
+              "parcel-polygon",
+              "nearby-parcel",
+              null
+            ],
+            "description": "How the parcel was found: the locator's address point; the parcel polygon under an interpolated point; or the nearest parcel within 40 ft (check candidate_parcels)"
+          },
+          "candidate_parcels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Present when several parcels sit within 40 ft of an interpolated point; the first was used"
           }
         }
       },

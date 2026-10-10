@@ -97,15 +97,40 @@ CACHE = TTLCache(CACHE_TTL)
 LIMITER = RateLimiter(RATE_PER_MIN, GLOBAL_RATE_PER_MIN)
 
 
-def cached_lookup(query: str) -> dict:
+def cached_lookup(query: str, limit=lookup.DEFAULT_LIMIT, since=None, types=None) -> dict:
+    """The full result is cached once per query; shaping (limit/since/types +
+    summary) is applied per request, so different views share one fetch."""
     key = " ".join(query.split()).lower()
     hit, age = CACHE.get(key)
-    if hit is not None:
-        return {**hit, "cached": True, "cache_age_s": age}
-    result = run_lookup(query)
-    if result.get("action") != "reject":
-        CACHE.put(key, result)
-    return {**result, "cached": False, "cache_age_s": 0}
+    if hit is None:
+        hit = run_lookup(query)
+        age = 0
+        if hit.get("action") != "reject":
+            CACHE.put(key, hit)
+        cached = False
+    else:
+        cached = True
+    shaped = lookup.shape_result(hit, limit=limit, since=since, types=types)
+    return {**shaped, "cached": cached, "cache_age_s": age}
+
+
+def parse_shaping(args: dict) -> tuple:
+    """(limit, since, types) from MCP arguments or REST query params; bad
+    values fall back to defaults rather than failing the call."""
+    limit = args.get("limit", lookup.DEFAULT_LIMIT)
+    try:
+        limit = None if limit in (None, "", "all") else max(0, int(limit))
+    except (TypeError, ValueError):
+        limit = lookup.DEFAULT_LIMIT
+    since = args.get("since") or None
+    if since and not isinstance(since, str):
+        since = None
+    types = args.get("types")
+    if isinstance(types, str):
+        types = [t.strip() for t in types.split(",") if t.strip()]
+    elif not isinstance(types, list):
+        types = None
+    return limit, since, (types or None)
 
 
 # --- documents --------------------------------------------------------------
@@ -118,7 +143,7 @@ def openapi() -> dict:
     out = lookup.TOOL_SCHEMA["output_schema"]
     result_props = {k: v for k, v in out["properties"].items() if k != "permits"}
     result_props["permits"] = {"type": "array", "items": {"$ref": "#/components/schemas/Permit"}}
-    result_props["cached"] = {"type": "boolean", "description": "Served from the server's short TTL cache"}
+    result_props["cached"] = {"type": "boolean", "description": "The underlying lookup came from the server's short TTL cache (shaping is always fresh)"}
     result_props["cache_age_s"] = {"type": "integer"}
     return {
         "openapi": "3.1.0",
@@ -135,8 +160,19 @@ def openapi() -> dict:
             "/api/lookup": {"get": {
                 "operationId": "lookupPermits",
                 "summary": "Permit history + status for an address, parcel or permit number",
-                "parameters": [{"name": "q", "in": "query", "required": True,
-                                "schema": lookup.TOOL_SCHEMA["input_schema"]["properties"]["query"]}],
+                "parameters": [
+                    {"name": "q", "in": "query", "required": True,
+                     "schema": lookup.TOOL_SCHEMA["input_schema"]["properties"]["query"]},
+                    {"name": "limit", "in": "query", "required": False,
+                     "schema": {"type": "integer", "minimum": 0, "default": lookup.DEFAULT_LIMIT},
+                     "description": "Max permits returned, newest first; summary always covers the whole matched set"},
+                    {"name": "since", "in": "query", "required": False,
+                     "schema": {"type": "string", "format": "date"},
+                     "description": "Only permits applied/issued on or after YYYY-MM-DD"},
+                    {"name": "types", "in": "query", "required": False,
+                     "schema": {"type": "string"},
+                     "description": "Comma-separated case-insensitive substrings matched against permit type"},
+                ],
                 "responses": {
                     "200": {"description": "Lookup result", "content": {"application/json": {
                         "schema": {"$ref": "#/components/schemas/LookupResult"}}}},
@@ -247,7 +283,8 @@ def handle_rpc(msg: dict) -> dict | None:
             return {"jsonrpc": "2.0", "id": id_, "result": {
                 "isError": True,
                 "content": [{"type": "text", "text": "query (string) is required"}]}}
-        result = cached_lookup(query)
+        limit, since, types = parse_shaping(params.get("arguments") or {})
+        result = cached_lookup(query, limit, since, types)
         return {"jsonrpc": "2.0", "id": id_, "result": {
             "isError": False,
             "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}],
@@ -314,12 +351,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(405, {"error": "SSE stream not offered; POST JSON-RPC to /mcp"},
                               extra={"Allow": "POST, OPTIONS"})
         if path == "/api/lookup":
-            q = (urllib.parse.parse_qs(url.query).get("q") or [""])[0]
+            qs = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
+            q = qs.get("q", "")
             if not q.strip():
                 return self._send(400, {"error": "q is required"})
             if not LIMITER.allow(self._client()):
                 return self._send(429, {"error": "rate limited"}, extra={"Retry-After": "60"})
-            result = cached_lookup(q)
+            limit, since, types = parse_shaping(qs)
+            result = cached_lookup(q, limit, since, types)
             return self._send(200, result)
         return self._send(404, {"error": "not found"})
 

@@ -7,6 +7,24 @@
       "query": {
         "type": "string",
         "description": "One of: street address ('1817 Morris Ave S, Renton WA 98055'), 10-digit parcel number (plain '7222000353' or formatted '722200-0353'), or permit number ('B25000947', 'ADDC21-0275', '23-127651-LP', '6145915-CN'). Input type is auto-detected."
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 50,
+        "description": "Max permits to return (newest first). summary always covers the whole matched set, so start small and raise only if you need the rows."
+      },
+      "since": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "description": "Only permits applied/issued on or after this date (YYYY-MM-DD)."
+      },
+      "types": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Case-insensitive substrings matched against each permit's type, e.g. ['electrical', 'mechanical']."
       }
     },
     "required": [
@@ -27,11 +45,20 @@
         "description": "found \u2014 permits[] is populated; none \u2014 no permits found; refine \u2014 connection issue, retry; reject \u2014 bad input"
       },
       "permit_count": {
-        "type": "integer"
+        "type": "integer",
+        "description": "Unique permits found before any since/types filter (= summary.total)"
+      },
+      "summary": {
+        "type": "object",
+        "description": "Computed over every permit matching since/types (not just the returned rows): total, matched, returned, truncated, open, closed, status_unknown, by_type, by_status, by_year, years [oldest, newest], latest {permit_number,type,status,date,jurisdiction}. Answer from this; drill into permits only when you need rows."
+      },
+      "filters": {
+        "type": "object",
+        "description": "The limit/since/types that produced this response"
       },
       "permits": {
         "type": "array",
-        "description": "Permit records sorted newest applied_date first.",
+        "description": "Up to `limit` permit records, newest first (applied_date, else issued_date).",
         "items": {
           "type": "object",
           "properties": {
@@ -115,7 +142,7 @@
           "partial",
           "fallback"
         ],
-        "description": "live \u2014 every applicable source answered; partial \u2014 some source errored or a city portal needs manual follow-up; fallback \u2014 nothing searchable, use separate_portal"
+        "description": "live \u2014 every applicable source answered; partial \u2014 a source errored or hit its result cap (see errors); fallback \u2014 nothing searchable, use next_step. A city needing manual follow-up (next_step) does not by itself lower trust."
       },
       "fetched_at": {
         "type": "string",

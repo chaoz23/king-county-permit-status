@@ -257,3 +257,7 @@ python3 -m unittest discover -s tests -v
 ## License
 
 MIT
+
+## License
+
+MIT — see [LICENSE](LICENSE). Permit data comes from the public municipal and county sources named above; cite results with the `cite_as` field.

@@ -171,3 +171,29 @@ class DocumentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShapingParamTests(unittest.TestCase):
+    def test_parse_shaping_from_rest_and_mcp(self):
+        self.assertEqual(server.parse_shaping({}), (50, None, None))
+        self.assertEqual(server.parse_shaping({"limit": "5", "since": "2020-01-01", "types": "elec, mech"}),
+                         (5, "2020-01-01", ["elec", "mech"]))
+        self.assertEqual(server.parse_shaping({"limit": "all"}), (None, None, None))
+        self.assertEqual(server.parse_shaping({"limit": "x", "types": ["Electrical"]}), (50, None, ["Electrical"]))
+        self.assertEqual(server.parse_shaping({"limit": -3}), (0, None, None))
+
+    def test_cached_full_result_shaped_per_request(self):
+        many = [{"permit_number": f"P{i}", "type": "Electrical", "status": "Issued", "is_open": True,
+                 "applied_date": f"20{i:02d}-01-01", "jurisdiction": "Renton"} for i in range(10, 70)]
+        calls = []
+        def fake(q):
+            calls.append(q); return {"action": "found", "permits": many, "message": "m", "permit_count": 60}
+        server.CACHE = server.TTLCache(300)
+        with patch.object(server, "run_lookup", side_effect=fake):
+            a = server.cached_lookup("addr", 5, None, None)
+            b = server.cached_lookup("addr", None, "2050-01-01", None)
+        self.assertEqual(len(calls), 1)                     # one fetch, two shapes
+        self.assertEqual((len(a["permits"]), a["summary"]["total"], a["cached"]), (5, 60, False))
+        self.assertTrue(b["cached"])
+        self.assertTrue(all(p["applied_date"] >= "2050-01-01" for p in b["permits"]))
+        self.assertEqual(b["summary"]["matched"], len(b["permits"]))

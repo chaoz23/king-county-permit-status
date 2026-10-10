@@ -1800,8 +1800,22 @@ def enrich_permit(permit: dict) -> dict:
     return permit
 
 
-def lookup(raw_input: str) -> dict:
-    """Core lookup. Returns unified result for human + agent."""
+DEFAULT_LIMIT = 50
+
+
+def lookup(raw_input: str, limit: int | None = DEFAULT_LIMIT, since: str | None = None,
+           types: list[str] | None = None) -> dict:
+    """Core lookup. Returns unified result for human + agent.
+
+    The full record set is found, then shaped: `summary` is computed over
+    everything that matched `since`/`types`, and `permits` carries at most
+    `limit` of them, newest first (None = all). Keeps agents from receiving a
+    356-permit, 56k-token blob for a commercial parcel."""
+    return shape_result(lookup_all(raw_input), limit=limit, since=since, types=types)
+
+
+def lookup_all(raw_input: str) -> dict:
+    """Unshaped lookup: every unique permit found, no summary."""
     if not raw_input.strip():
         return {
             "action": "reject",
@@ -2238,9 +2252,14 @@ def lookup(raw_input: str) -> dict:
 
     # Provenance envelope: every record above came from a live source query at
     # fetched_at. trust_level tells an agent how complete that picture is.
+    # live     every applicable source answered
+    # partial  a source errored or hit its result cap (see `errors`)
+    # fallback nothing was searchable; next_step is the lead
+    # A city needing manual follow-up (next_step) is a *scope* fact and no
+    # longer downgrades trust — the sources that were searched did answer.
     if not searched_jurisdictions:
-        trust = "fallback"      # nothing searchable; separate_portal is the lead
-    elif errors or separate_portal_note:
+        trust = "fallback"
+    elif errors:
         trust = "partial"
     else:
         trust = "live"
@@ -2266,6 +2285,59 @@ def lookup(raw_input: str) -> dict:
                             if searched_jurisdictions else ""))
 
     return result
+
+
+def _permit_date(p: dict) -> str:
+    return p.get("applied_date") or p.get("issued_date") or ""
+
+
+def shape_result(result: dict, limit: int | None = DEFAULT_LIMIT, since: str | None = None,
+                 types: list[str] | None = None) -> dict:
+    """Filter + truncate `permits` and add `summary` (over the filtered set)."""
+    permits = list(result.get("permits") or [])
+    total = len(permits)
+    if since:
+        permits = [p for p in permits if _permit_date(p) and _permit_date(p) >= since]
+    if types:
+        wants = [t.lower() for t in types if t]
+        permits = [p for p in permits if any(w in (p.get("type") or "").lower() for w in wants)]
+    permits.sort(key=_permit_date, reverse=True)
+    matched = len(permits)
+    shown = permits if limit is None else permits[:max(int(limit), 0)]
+
+    def tally(key):
+        c = {}
+        for p in permits:
+            k = key(p)
+            if k:
+                c[k] = c.get(k, 0) + 1
+        return dict(sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))[:12])
+
+    years = [_permit_date(p)[:4] for p in permits if _permit_date(p)]
+    latest = permits[0] if permits else None
+    summary = {
+        "total": total,                       # unique permits found before filters
+        "matched": matched,                   # after since/types
+        "returned": len(shown),
+        "truncated": len(shown) < matched,
+        "open": sum(1 for p in permits if p.get("is_open") is True),
+        "closed": sum(1 for p in permits if p.get("is_open") is False),
+        "status_unknown": sum(1 for p in permits if p.get("is_open") is None),
+        "by_type": tally(lambda p: p.get("type")),
+        "by_status": tally(lambda p: p.get("status") or "(none)"),
+        "by_year": dict(sorted(((y, years.count(y)) for y in set(years)), reverse=True)),
+        "years": [min(years), max(years)] if years else None,
+        "latest": ({"permit_number": latest.get("permit_number"), "type": latest.get("type"),
+                    "status": latest.get("status"), "date": _permit_date(latest) or None,
+                    "jurisdiction": latest.get("jurisdiction")} if latest else None),
+    }
+    out = {**result, "permits": shown, "summary": summary,
+           "filters": {"limit": limit, "since": since, "types": types or None}}
+    if summary["truncated"]:
+        out["message"] = (out.get("message", "") +
+                          f" Showing the {len(shown)} newest of {matched}; use summary for the whole set"
+                          " or raise limit / narrow with since/types.").strip()
+    return out
 
 
 EXIT_CODES = {"found": 0, "none": 1, "refine": 1, "reject": 2}
@@ -2299,7 +2371,19 @@ TOOL_SCHEMA = {
                     "'23-127651-LP', '6145915-CN'). "
                     "Input type is auto-detected."
                 ),
-            }
+            },
+            "limit": {
+                "type": "integer", "minimum": 0, "default": 50,
+                "description": "Max permits to return (newest first). summary always covers the whole matched set, so start small and raise only if you need the rows.",
+            },
+            "since": {
+                "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Only permits applied/issued on or after this date (YYYY-MM-DD).",
+            },
+            "types": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Case-insensitive substrings matched against each permit's type, e.g. ['electrical', 'mechanical'].",
+            },
         },
         "required": ["query"],
     },
@@ -2316,10 +2400,15 @@ TOOL_SCHEMA = {
                     "reject — bad input"
                 ),
             },
-            "permit_count": {"type": "integer"},
+            "permit_count": {"type": "integer", "description": "Unique permits found before any since/types filter (= summary.total)"},
+            "summary": {
+                "type": "object",
+                "description": "Computed over every permit matching since/types (not just the returned rows): total, matched, returned, truncated, open, closed, status_unknown, by_type, by_status, by_year, years [oldest, newest], latest {permit_number,type,status,date,jurisdiction}. Answer from this; drill into permits only when you need rows.",
+            },
+            "filters": {"type": "object", "description": "The limit/since/types that produced this response"},
             "permits": {
                 "type": "array",
-                "description": "Permit records sorted newest applied_date first.",
+                "description": "Up to `limit` permit records, newest first (applied_date, else issued_date).",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -2342,7 +2431,7 @@ TOOL_SCHEMA = {
             "trust_level": {
                 "type": "string",
                 "enum": ["live", "partial", "fallback"],
-                "description": "live — every applicable source answered; partial — some source errored or a city portal needs manual follow-up; fallback — nothing searchable, use separate_portal",
+                "description": "live — every applicable source answered; partial — a source errored or hit its result cap (see errors); fallback — nothing searchable, use next_step. A city needing manual follow-up (next_step) does not by itself lower trust.",
             },
             "fetched_at": {"type": "string", "description": "UTC ISO-8601 timestamp of this query; records are live, not cached"},
             "parcel_id": {"type": ["string", "null"], "description": "County-namespaced parcel id, e.g. 'king:7222000353' or 'pierce:5985002900', when the query was or resolved to a parcel"},
@@ -2423,6 +2512,8 @@ def print_usage():
     print('  lookup.py "7222000353"                    # by parcel number')
     print('  lookup.py "ADDC21-0275"                   # by permit number')
     print('  lookup.py --pipe "27927 E Main St"        # agent mode')
+    print('  lookup.py --limit 10 --since 2020-01-01 --type electrical "<addr>"  # shape the result')
+    print('  lookup.py --all "<addr>"                  # every permit (default: 50 newest + summary)')
     print('  lookup.py --schema                        # print tool definition')
 
 
@@ -2435,7 +2526,27 @@ def main():
 
     pipe_mode = "--pipe" in args
     schema_mode = "--schema" in args
-    args = [a for a in args if a not in ("--pipe", "--schema")]
+    limit, since, types = DEFAULT_LIMIT, None, []
+    rest = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--pipe", "--schema"):
+            pass
+        elif a == "--all":
+            limit = None
+        elif a in ("--limit", "--since", "--type") and i + 1 < len(args):
+            i += 1
+            if a == "--limit":
+                limit = int(args[i])
+            elif a == "--since":
+                since = args[i]
+            else:
+                types.append(args[i])
+        else:
+            rest.append(a)
+        i += 1
+    args = rest
 
     if schema_mode:
         print(json.dumps(TOOL_SCHEMA, indent=2))
@@ -2446,7 +2557,7 @@ def main():
         sys.exit(2)
 
     query = " ".join(args)
-    result = lookup(query)
+    result = lookup(query, limit=limit, since=since, types=types or None)
 
     if pipe_mode:
         print(json.dumps(result, separators=(",", ":")))

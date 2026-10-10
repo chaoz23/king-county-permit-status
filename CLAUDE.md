@@ -7,7 +7,7 @@ python3 lookup.py "<address, parcel number, or permit number>"
 ```
 
 Read the `action` field:
-- `found` → show the `permits` list (sorted newest-first), highlight any with status like "Expiration Notice" or "Corrections Required"
+- `found` → answer from `summary` first (totals, open/closed, by_type, by_year, latest); `permits` holds only the `limit` newest (default 50) — re-run with `--limit`, `--since`, `--type` or `--all` when you need specific rows. Highlight any with status like "Expiration Notice" or "Corrections Required"
 - `none` → tell the user no permits were found; if `separate_portal` is present, direct them to that city's portal
 - permits with `status: ""` and `is_open: null` whose `portal` is `blue.kingcounty.com` come from the **King County Assessor's issued-permit index** — real permits, but the index is what the city reported for valuation (building/remodel, dense since ~2023, no trade sub-permits) and has no status; say so, and use `next_step` for current status
 - whenever `next_step` is present (any action), it is the machine-actionable version of that note: `portal_url` is the portal's search page, `search_by` lists what it accepts, `query` is what to enter — use it rather than guessing a URL

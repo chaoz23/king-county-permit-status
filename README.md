@@ -15,6 +15,8 @@ python3 lookup.py "B25000947"                   # by permit number
 python3 lookup.py "23-127651-LP"                # Bellevue permit number
 python3 lookup.py "6145915-CN"                  # Seattle SDCI permit number
 python3 lookup.py --pipe "27927 E Main St"      # agent pipeline mode
+python3 lookup.py --limit 10 --since 2020-01-01 --type electrical "27927 E Main St"   # shape: newest 10 electrical since 2020
+python3 lookup.py --all "27927 E Main St"       # every permit (default is the 50 newest + a summary of all)
 python3 lookup.py --schema                      # print tool definition
 ```
 
@@ -26,7 +28,7 @@ The same lookup is served read-only, no auth, from `permits-api.secondlandings.a
 | | |
 |---|---|
 | **MCP** (Streamable HTTP) | `POST https://permits-api.secondlandings.ai/mcp` — tool `king_county_permit_status`, arg `query` |
-| **REST** | `GET https://permits-api.secondlandings.ai/api/lookup?q=1817+Morris+Ave+S,+Renton+WA` |
+| **REST** | `GET https://permits-api.secondlandings.ai/api/lookup?q=1817+Morris+Ave+S,+Renton+WA` — optional `limit`, `since=YYYY-MM-DD`, `types=electrical,mechanical` |
 | **OpenAPI 3.1** (typed) | `/openapi.json` · agent orientation `/llms.txt` · CLI definition `/tool.json` · `/healthz` |
 
 Results are live; the server caches each query for 15 minutes and rate-limits
@@ -78,13 +80,15 @@ mailing city is only used when geocoding fails (`jurisdiction.basis` says which)
 | Field | Description |
 |---|---|
 | `action` | `found` (permits returned), `none` (no matches), `refine` (connection issue) |
-| `permit_count` | Number of unique permits found |
-| `permits` | Array sorted newest `applied_date` first |
+| `permit_count` | Unique permits found before any filter (= `summary.total`) |
+| `summary` | **Answer from this first.** Computed over every permit matching `since`/`types`, not just the returned rows: `total`, `matched`, `returned`, `truncated`, `open`, `closed`, `status_unknown`, `by_type`, `by_status`, `by_year`, `years` `[oldest, newest]`, `latest` |
+| `permits` | Up to `limit` records (default **50**), newest first — a 356-permit commercial parcel is ~56k tokens unshaped; the summary carries the whole picture |
+| `filters` | The `limit` / `since` / `types` that produced this response |
 | `searched` | Which jurisdictions were searched |
 | `separate_portal` | If the city has an unsupported portal: city name + URL + prose note |
 | `next_step` | Structured twin of `separate_portal` for agents: `kind: manual_portal_search`, `reason` (`no_feed` / `electrical_only` / `parcel_resolution_failed` / `source_incomplete`), `portal_url` (the portal's actual search page when known — PermitTrax, LAMA, OpenGov, Kent), `vendor`, `search_by` (inputs that page accepts; empty when login-gated), `query`, `query_type`, `covers_electrical`, `hint` |
 | `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
-| `trust_level` | `live` (every applicable source answered), `partial` (a source errored or a portal needs manual follow-up), `fallback` (nothing searchable) |
+| `trust_level` | `live` (every applicable source answered), `partial` (a source errored or hit its result cap — see `errors`), `fallback` (nothing searchable). A city that needs a manual portal visit (`next_step`) is a scope fact, not distrust, and no longer lowers this |
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |
 | `parcel_id` | County-namespaced parcel, e.g. `king:7222000353` or `pierce:5985002900`, when the query was or resolved to a parcel |
 | `jurisdiction` | Where the query was routed and why: `city`, `basis` (`city-limits` = the geocoded point falls inside that city's polygon — authoritative; `geocoder-city`; `address-text` = the mailing city in the query, used only when geocoding fails), `county`, `unincorporated` (true → county permits only, even if the mailing city says "Kent") |

@@ -2069,3 +2069,93 @@ class MbpParcelFirstTests(unittest.TestCase):
              patch.object(lookup, "search_permits", side_effect=mbp):
             lookup.lookup("400 SW 152nd St, Burien, WA 98166")
         self.assertTrue(all("parcel" not in kw for kw in calls))
+
+
+class ResponseShapingTests(unittest.TestCase):
+    """#1 of the quality assessment: agents get a summary + bounded rows."""
+
+    def _permits(self):
+        rows = []
+        for i in range(60):
+            yr = 2000 + i % 26
+            rows.append({"permit_number": f"P{i:03d}", "type": "Electrical" if i % 3 else "Building",
+                         "status": "Issued" if i % 2 else "Finaled", "is_open": bool(i % 2),
+                         "applied_date": f"{yr}-01-{(i % 28) + 1:02d}", "issued_date": None,
+                         "jurisdiction": "Renton"})
+        return rows
+
+    def test_default_limit_truncates_but_summary_covers_all(self):
+        out = lookup.shape_result({"action": "found", "permits": self._permits(), "message": "Found 60."})
+        s = out["summary"]
+        self.assertEqual((s["total"], s["matched"], s["returned"], s["truncated"]), (60, 60, 50, True))
+        self.assertEqual(len(out["permits"]), 50)
+        self.assertEqual(s["open"] + s["closed"], 60)
+        self.assertEqual(sum(s["by_type"].values()), 60)
+        self.assertEqual(s["years"], ["2000", "2025"])
+        self.assertEqual(out["permits"][0]["applied_date"], max(p["applied_date"] for p in self._permits()))
+        self.assertEqual(s["latest"]["permit_number"], out["permits"][0]["permit_number"])
+        self.assertIn("Showing the 50 newest of 60", out["message"])
+        self.assertEqual(out["filters"], {"limit": 50, "since": None, "types": None})
+
+    def test_since_and_types_filter_before_summary(self):
+        out = lookup.shape_result({"action": "found", "permits": self._permits()},
+                                  limit=5, since="2020-01-01", types=["elec"])
+        s = out["summary"]
+        self.assertEqual(s["total"], 60)
+        self.assertTrue(all(p["type"] == "Electrical" and p["applied_date"] >= "2020-01-01" for p in out["permits"]))
+        self.assertEqual(s["matched"], sum(1 for p in self._permits()
+                                           if p["type"] == "Electrical" and p["applied_date"] >= "2020-01-01"))
+        self.assertEqual(s["returned"], 5)
+        self.assertEqual(set(s["by_type"]), {"Electrical"})
+
+    def test_limit_none_returns_everything(self):
+        out = lookup.shape_result({"action": "found", "permits": self._permits()}, limit=None)
+        self.assertEqual(len(out["permits"]), 60)
+        self.assertFalse(out["summary"]["truncated"])
+
+    def test_empty_result_has_empty_summary(self):
+        out = lookup.shape_result({"action": "none", "permits": [], "message": "No permits."})
+        s = out["summary"]
+        self.assertEqual((s["total"], s["returned"], s["open"]), (0, 0, 0))
+        self.assertIsNone(s["latest"]); self.assertIsNone(s["years"])
+        self.assertEqual(out["message"], "No permits.")
+
+    def test_lookup_applies_shaping_and_cli_flags(self):
+        full = {"action": "found", "permits": self._permits(), "message": "x", "permit_count": 60}
+        with patch.object(lookup, "lookup_all", return_value=full):
+            self.assertEqual(len(lookup.lookup("q")["permits"]), 50)
+            self.assertEqual(len(lookup.lookup("q", limit=3)["permits"]), 3)
+            self.assertEqual(lookup.lookup("q", limit=None)["permit_count"], 60)   # unchanged semantics
+        completed = subprocess.run([sys.executable, str(REPO_ROOT / "lookup.py"), "--pipe", "--limit", "2",
+                                    "--since", "2020-01-01", "--type", "elec", "7222000353"],
+                                   cwd=REPO_ROOT, text=True, capture_output=True,
+                                   env={**__import__("os").environ, "KCPS_TEST_NO_NETWORK": "1"}, timeout=120)
+        # network may or may not answer in CI; the flags must parse and the envelope must carry them
+        d = json.loads(completed.stdout)
+        self.assertEqual(d["filters"], {"limit": 2, "since": "2020-01-01", "types": ["elec"]})
+        self.assertLessEqual(len(d["permits"]), 2)
+
+
+class TrustLevelSemanticsTests(unittest.TestCase):
+    """#2: next_step is scope, not distrust."""
+
+    def _stub(self):
+        for p in (patch.object(lookup, "get_session", return_value=(object(), "tok")),
+                  patch.object(lookup, "search_permits", return_value=[]),
+                  patch.object(lookup, "search_bellevue", return_value=[]),
+                  patch.object(lookup, "search_lni", return_value=([], []))):
+            p.start(); self.addCleanup(p.stop)
+
+    def test_fallback_city_with_clean_sources_is_live(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=None):
+            r = lookup.lookup("220 4th Ave S, Kent, WA 98032")
+        self.assertIn("next_step", r)
+        self.assertEqual(r["trust_level"], "live")
+
+    def test_source_error_is_partial(self):
+        self._stub()
+        with patch.object(lookup, "resolve_location", return_value=None), \
+             patch.object(lookup, "search_lni", return_value=([], ["L&I down"])):
+            r = lookup.lookup("220 4th Ave S, Kent, WA 98032")
+        self.assertEqual(r["trust_level"], "partial")

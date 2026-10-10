@@ -197,3 +197,16 @@ class ShapingParamTests(unittest.TestCase):
         self.assertTrue(b["cached"])
         self.assertTrue(all(p["applied_date"] >= "2050-01-01" for p in b["permits"]))
         self.assertEqual(b["summary"]["matched"], len(b["permits"]))
+
+
+class CacheHoldsFullSetTests(unittest.TestCase):
+    def test_server_caches_the_unshaped_lookup(self):
+        """Caching lookup() (default limit 50) would make summary.total 50 forever."""
+        import importlib
+        fresh = importlib.reload(server)
+        self.assertIs(fresh.run_lookup, server_lookup_all())
+
+
+def server_lookup_all():
+    import lookup
+    return lookup.lookup_all

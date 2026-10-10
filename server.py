@@ -47,8 +47,9 @@ RATE_PER_MIN = int(os.environ.get("KCPS_RATE_PER_MIN", "30"))
 GLOBAL_RATE_PER_MIN = int(os.environ.get("KCPS_GLOBAL_RATE_PER_MIN", "300"))
 TRUST_PROXY = os.environ.get("KCPS_TRUST_PROXY", "") == "1"
 
-# The function the server calls; tests patch this.
-run_lookup = lookup.lookup
+# The function the server calls; tests patch this. It must be the UNSHAPED
+# lookup: the cache holds the full set and shaping happens per request.
+run_lookup = lookup.lookup_all
 
 
 # --- cache + rate limit -----------------------------------------------------

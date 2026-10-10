@@ -1,6 +1,6 @@
 {
   "name": "king_county_permit_status",
-  "description": "Look up building permit history and status for any King County, WA property. Accepts a street address, 10-digit parcel number, or permit number. Searches MyBuildingPermit.com (14 cities + King County), Bellevue and Seattle Open Data, Renton EnerGov (live API), and WA State L&I (electrical permits). Returns all matching permits sorted newest-first. Use for due diligence, permit tracking, or verifying contractor pull history.",
+  "description": "Look up building permit history and status for any King County, WA property. Accepts a street address, 10-digit parcel number, or permit number. Live sources: MyBuildingPermit (14 cities + unincorporated King County), Seattle and Bellevue open data, Renton EnerGov, Redmond Civic Access, Shoreline eTRAKiT, Woodinville + King County Accela, Normandy Park and Carnation SmartGov, SeaTac LAMA, WA State L&I (electrical), plus the King County Assessor's issued-permit index for every parcel (covers the 19 cities without a public portal; history only, no status). Jurisdiction is derived from the city-limits polygon, not the mailing city. Returns all matching permits sorted newest-first. Use for due diligence, permit tracking, or verifying contractor pull history.",
   "input_schema": {
     "type": "object",
     "properties": {

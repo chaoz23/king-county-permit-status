@@ -88,7 +88,7 @@ mailing city is only used when geocoding fails (`jurisdiction.basis` says which)
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |
 | `parcel_id` | County-namespaced parcel, e.g. `king:7222000353` or `pierce:5985002900`, when the query was or resolved to a parcel |
 | `jurisdiction` | Where the query was routed and why: `city`, `basis` (`city-limits` = the geocoded point falls inside that city's polygon — authoritative; `geocoder-city`; `address-text` = the mailing city in the query, used only when geocoding fails), `county`, `unincorporated` (true → county permits only, even if the mailing city says "Kent") |
-| `address_resolution` | How well the geocoder matched an address: `matched_address`, `score`, `match_type` (`point` = exact address point; `interpolated` = number placed along the street, no parcel; `street`), `partial_match`, `street_number_snapped` |
+| `address_resolution` | How well the geocoder matched an address: `matched_address`, `score`, `match_type` (`point` = exact address point; `interpolated` = number placed along the street; `street`), `partial_match`, `street_number_snapped`, `parcel_basis` (`address-point`, `parcel-polygon`, or `nearby-parcel` when the PIN came from the parcel layer under/near an interpolated point — then `candidate_parcels` lists the alternatives) |
 | `cite_as` | One-line attribution string for generated text |
 
 Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vendor status vocabularies; `null` when the source exposes no status), `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`, `record_url` (the specific record's URL when the source exposes one).
@@ -166,7 +166,7 @@ Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --wri
 
 > ⚠️ **Electrical gaps:** Des Moines, Milton, Tukwila. These cities self-run their electrical program (so L&I is skipped) and are not on MyBuildingPermit, leaving their electrical permits in no feed we search. MBP cities that self-run electrical (Burien, Federal Way, Kirkland, Mercer Island, Sammamish) are **not** gaps — verified 2026-07-15 that MBP carries their electrical history. Closing the remaining gaps is tracked in the coverage epic.
 
-> ℹ️ **Split-county cities:** Milton (mostly Pierce), Pacific and Auburn straddle the King/Pierce line. Each city issues its own permits for the whole city, so the row above applies to both sides; only *county-level* permits (septic, critical areas) differ — Pierce County's portal is not searched. Parcel ids are county-namespaced (`king:…`) for this reason.
+> ℹ️ **Split-county cities:** Milton (mostly Pierce), Pacific and Auburn straddle the King/Pierce line. Each city issues its own permits for the whole city, so a *live* row applies to both sides; but the 🗂️ Assessor index is King County's, so for an **indexed** split city (Milton) only King-side parcels have index rows — Pierce-side addresses get the portal pointer only. Pierce County's portal is not searched. Parcel ids are county-namespaced (`king:…` / `pierce:…`) for this reason.
 
 <!-- END SCORECARD -->
 
@@ -244,7 +244,7 @@ print(json.dumps(open_permits, indent=2))
 ## Requirements
 
 - Python 3.10+ (stdlib only, no dependencies)
-- Network access to `permitsearch.mybuildingpermit.com`, `services1.arcgis.com`, `permitting.rentonwa.gov`, `secure.lni.wa.gov`
+- Network access to the municipal and county hosts in the source table above (MyBuildingPermit, Tyler/Accela/SmartGov/eTRAKiT/LAMA portals, Seattle and Bellevue open data, `gismaps.kingcounty.gov`, `blue.kingcounty.com`, `secure.lni.wa.gov`)
 
 ## Development
 
@@ -254,9 +254,16 @@ Run the network-free regression suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-## License
+## Quality checks
 
-MIT
+Four layers, each answering a different question:
+
+| Check | Question | Runs |
+|---|---|---|
+| `python3 -m unittest discover -s tests` | Does the code still do what it did? (mocked, offline) | CI on every push + Mondays |
+| `python3 scripts/qc_scorecard.py` | **Does every scorecard row behave as claimed, live?** One real address per city (`qc_addresses.json`); expectations are derived from the same classification that renders the scorecard — live rows must return records from the city's own source, indexed rows must return Assessor history plus a `next_step`, and the electrical column must match what was searched | Mondays (non-blocking), or by hand |
+| `python3 scripts/qc_smoke.py` | Do real, fake and edge inputs route sensibly end to end? | Mondays (non-blocking) |
+| `python3 scripts/source_health.py` | Is each adapter still answering a known-good query, and what status vocabulary is it returning? | Mondays → `source_health.json` → scorecard Health column |
 
 ## License
 

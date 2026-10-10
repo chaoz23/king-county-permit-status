@@ -557,6 +557,10 @@ KC_CITY_LIMITS_URL = (
     "/Administration/KingCo_AdministrativeAreas/MapServer/2/query"
 )
 KC_STATE_PLANE_WKID = "2926"
+KC_PARCELS_URL = (
+    "https://gismaps.kingcounty.gov/arcgis/rest/services"
+    "/Property/KingCo_Parcels/MapServer/0/query"
+)
 # Polygon NAME → our routing key where they differ.
 CITY_LIMITS_NAME_MAP = {"beaux arts": "beaux arts village"}
 # Geocoder Addr_type → how much of the address was actually matched.
@@ -593,12 +597,18 @@ def resolve_location(address: str) -> dict | None:
 
     try:
         cands = geocode(address, 1)
-        if not cands and not re.search(r"\b(wa|washington)\b|\b\d{5}\b", address, re.I):
-            # The locator needs a region hint. Without a city the same street
-            # address can exist in several cities ("220 4th Ave S" is in Kent
-            # and Edmonds), so take the top match only if it is unambiguous,
-            # preferring King County — this is a King County tool.
-            cands = geocode(f"{address}, WA", 5)
+        if not cands:
+            # Retry as "<house> <street>, WA". Two reasons: the locator needs
+            # a region hint when the query has none, and it returns nothing
+            # for a non-city locality plus ZIP ("13205 Vashon Hwy SW, Vashon,
+            # WA 98070" → [] while "…, Vashon WA" → a parcel match). Without a
+            # city the same street address can exist in several cities
+            # ("220 4th Ave S" is in Kent and Edmonds), so take the top match
+            # only if it is unambiguous, preferring King County.
+            house, street = parse_address(address)
+            street = re.sub(r"\s+\d{5}(?:-\d{4})?$", "", street or "")   # drop a trailing ZIP
+            retry = f"{house} {street}, WA".strip() if house and street else f"{address}, WA"
+            cands = geocode(retry, 5)
             if cands:
                 top = cands[0].get("score", 0)
                 points = [c for c in cands if c.get("score", 0) == top
@@ -638,6 +648,30 @@ def resolve_location(address: str) -> dict | None:
         "jurisdiction_basis": None,
         "unincorporated": None,
     }
+    # No PIN on an interpolated/street match: take the parcel polygon under
+    # (or within 40 ft of) the point — the locator lacks address points for
+    # some towns (Black Diamond, Beaux Arts, Skykomish) but the parcel layer
+    # is complete. Marked so callers can see the PIN is positional.
+    out["parcel_basis"] = "address-point" if out["pin"] else None
+    if not out["pin"] and county == "king" and loc.get("x") is not None:
+        for dist in ("0", "40"):
+            try:
+                feats = _arcgis_json(KC_PARCELS_URL, {
+                    "geometry": f"{loc['x']},{loc['y']}",
+                    "geometryType": "esriGeometryPoint", "inSR": KC_STATE_PLANE_WKID,
+                    "spatialRel": "esriSpatialRelIntersects", "distance": dist,
+                    "units": "esriSRUnit_Foot", "outFields": "PIN",
+                    "returnGeometry": "false", "f": "json"}).get("features") or []
+            except Exception:
+                feats = []
+            pins = [f["attributes"].get("PIN") for f in feats if f.get("attributes", {}).get("PIN")]
+            if pins:
+                out["pin"] = pins[0]
+                out["parcel_id"] = f"king:{pins[0]}"
+                out["parcel_basis"] = "nearby-parcel" if dist != "0" or len(pins) > 1 else "parcel-polygon"
+                if len(pins) > 1:
+                    out["candidate_parcels"] = pins[:5]
+                break
     # City-limits polygon → jurisdiction. The layer covers all four counties.
     if loc.get("x") is not None and loc.get("y") is not None:
         try:
@@ -1952,7 +1986,18 @@ def lookup(raw_input: str) -> dict:
             juris_to_search = list(JURISDICTIONS.keys())
 
         for jid in juris_to_search:
-            results = search_mbp(jid, house=house, street=street)
+            # Parcel first when the address resolved to a PIN: MBP's house +
+            # street search trips its "too many results" cap on busy streets
+            # (Burien city hall: cap by street, 42 rows by parcel) and misses
+            # on number formatting (Federal Way: 0 by street, 120 by parcel).
+            # Fall back to house/street when MBP doesn't know the PIN.
+            results = None
+            if resolved_parcel:
+                results = search_mbp(jid, parcel=resolved_parcel)
+                if results == []:
+                    results = None
+            if results is None:
+                results = search_mbp(jid, house=house, street=street)
             if results is None:
                 continue
             jname = JURISDICTIONS.get(jid, jid)
@@ -2211,8 +2256,11 @@ def lookup(raw_input: str) -> dict:
     }
     if location:
         result["address_resolution"] = {
-            k: location[k] for k in ("matched_address", "score", "match_type",
-                                     "partial_match", "street_number_snapped")}
+            k: location.get(k) for k in ("matched_address", "score", "match_type",
+                                         "partial_match", "street_number_snapped",
+                                         "parcel_basis")}
+        if location.get("candidate_parcels"):
+            result["address_resolution"]["candidate_parcels"] = location["candidate_parcels"]
     result["cite_as"] = (f"{CITE_AS}, queried {result['fetched_at'][:10]}"
                          + (f" via {', '.join(dict.fromkeys(searched_jurisdictions))}"
                             if searched_jurisdictions else ""))
@@ -2317,6 +2365,10 @@ TOOL_SCHEMA = {
                     "match_type": {"type": "string", "enum": ["point", "interpolated", "street"]},
                     "partial_match": {"type": "boolean"},
                     "street_number_snapped": {"type": "boolean"},
+                    "parcel_basis": {"type": ["string", "null"], "enum": ["address-point", "parcel-polygon", "nearby-parcel", None],
+                                     "description": "How the parcel was found: the locator's address point; the parcel polygon under an interpolated point; or the nearest parcel within 40 ft (check candidate_parcels)"},
+                    "candidate_parcels": {"type": "array", "items": {"type": "string"},
+                                          "description": "Present when several parcels sit within 40 ft of an interpolated point; the first was used"},
                 },
             },
             "cite_as": {"type": "string", "description": "One-line attribution string for generated text"},

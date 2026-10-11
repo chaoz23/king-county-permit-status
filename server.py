@@ -228,6 +228,7 @@ Live building-permit history and status for King County, WA — any address,
 - MCP (Streamable HTTP): POST {base}/mcp — tool `{TOOL_NAME}` with one string arg `query`
 - REST: GET {base}/api/lookup?q=<address|parcel|permit>
 - OpenAPI: {base}/openapi.json · CLI tool definition: {base}/tool.json
+- Vendor map (which system each King County city runs, how it is queried): {base}/vendor-map · {base}/vendor-map.json
 - Health: {base}/healthz
 
 What you get: `permits[]` (permit_number, type, status, is_open, dates, address,
@@ -242,6 +243,46 @@ https://github.com/chaoz23/king-county-permit-status#readme
 
 Please cite results using the `cite_as` field. Rate limit: {RATE_PER_MIN}/min per client.
 """
+
+
+def vendor_map() -> dict | None:
+    try:
+        with open(os.path.join(ROOT, "vendor_map.json")) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def vendor_map_html(m: dict) -> str:
+    """A plain, dependency-free table view of vendor_map.json (#27)."""
+    import html as _h
+    rows = []
+    for r in m["rows"]:
+        how = _h.escape(r["mechanism"] or "")
+        if r.get("tracking_issue"):
+            how += f' — <a href="{_h.escape(r["tracking_issue"])}">issue</a>'
+        elec = ("city (searched)" if r["electrical_authority"] == "city" and r["electrical_searched"]
+                else "city — gap" if r["electrical_authority"] == "city" else "WA L&I")
+        d = r.get("records_at_qc_address")
+        depth = f"{d['live']} / {d['index']}" if d else "—"
+        portal = f'<a href="{_h.escape(r["portal"])}">portal</a>' if r.get("portal") else "—"
+        rows.append(f"<tr class='{r['status']}'><td>{_h.escape(r['city'])}</td><td>{r['status']}</td>"
+                    f"<td>{_h.escape(r['system'])}</td><td>{how}</td><td>{elec}</td><td>{depth}</td><td>{portal}</td></tr>")
+    t = m["tally"]
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{_h.escape(m['title'])}</title>
+<style>body{{font:15px/1.45 system-ui,sans-serif;margin:2rem auto;max-width:1200px;padding:0 1rem;color:#222}}
+table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{border:1px solid #ddd;padding:.4rem .5rem;vertical-align:top;text-align:left}}
+th{{background:#f4f4f4;position:sticky;top:0}}tr.live td:nth-child(2){{color:#1a7f37;font-weight:600}}tr.blocked td:nth-child(2){{color:#b35900;font-weight:600}}
+tr.indexed td:nth-child(2){{color:#555}}code{{background:#f4f4f4;padding:0 .25rem}}</style></head><body>
+<h1>{_h.escape(m['title'])}</h1>
+<p>{m['cities']} King County cities: <b>{t['live']} live</b> (searched by the tool), {t['blocked']} blocked, {t['indexed']} with no portal.
+Every parcel also has issued-permit history in the King County Assessor index. Generated from the tool's own adapter config;
+machine-readable at <a href="/vendor-map.json">/vendor-map.json</a>. Query any address live: <code>GET /api/lookup?q=…</code> or the MCP tool.</p>
+<table><thead><tr><th>City</th><th>Status</th><th>System</th><th>How it is queried / why not</th><th>Electrical</th><th>Records @ QC address (live / index)</th><th>Portal</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table>
+<p><small>Recipes and recon notes: <a href="{_h.escape(m['recipes'])}">docs</a> · <a href="{_h.escape(m['tool'])}">source (MIT)</a> · routing data verified {_h.escape(str(m['routing_data_verified']))}</small></p>
+</body></html>"""
 
 
 def health() -> dict:
@@ -375,6 +416,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, lookup.TOOL_SCHEMA)
         if path == "/llms.txt":
             return self._send(200, llms_txt(self._base()), "text/plain; charset=utf-8")
+        if path == "/vendor-map.json":
+            vm = vendor_map()
+            return self._send(200, vm) if vm else self._send(404, {"error": "vendor map not built"})
+        if path == "/vendor-map":
+            vm = vendor_map()
+            return (self._send(200, vendor_map_html(vm), "text/html; charset=utf-8") if vm
+                    else self._send(404, {"error": "vendor map not built"}))
         if path == "/mcp":
             return self._send(405, {"error": "SSE stream not offered; POST JSON-RPC to /mcp"},
                               extra={"Allow": "POST, OPTIONS"})

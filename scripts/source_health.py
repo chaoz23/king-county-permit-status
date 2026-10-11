@@ -234,6 +234,10 @@ def main() -> int:
                 "tally": sc.get("tally"),
                 "failing": [c["city"] for c in sc.get("cities", []) if c.get("outcome") == "FAIL"],
                 "warning": [c["city"] for c in sc.get("cities", []) if c.get("outcome") == "WARN"],
+                # Per-city record counts at the QC address (#80): how deep the
+                # live source / Assessor index actually goes for that city.
+                "counts": {c.get("key") or c["city"].lower(): {"own": c.get("own", 0), "index": c.get("index", 0)}
+                           for c in sc.get("cities", [])},
             }
             print(f"Scorecard QC: {report['scorecard_qc']['tally']} failing={report['scorecard_qc']['failing']}")
         except (OSError, ValueError) as exc:

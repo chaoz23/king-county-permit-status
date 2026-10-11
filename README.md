@@ -123,51 +123,51 @@ Per permit: `permit_number`, `type`, `status`, `is_open` (heuristic, census-test
 
 Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --write`). One row per King County city.
 
-**Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)
+**Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history · the number after ✅/🗂️ in Building is the record count at the city's QC address (see `qc_addresses.json`) — how much is really behind the row from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)
 
 **Health** = last weekly live probe of the city's source (`scripts/source_health.py`, 2026-10-11): ✅ answered with records · ⚪ answered, zero rows for a known-good query · ⛔ blocked (403) · ❌ down · ❔ unchecked · — no live source
 
 | City | Status | Source | Health | Building | Electrical | Mech/Plumb | Land Use |
 |---|---|---|---|---|---|---|---|
-| Algona | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Auburn | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Beaux Arts Village | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Black Diamond | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Bothell | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Burien | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Carnation | 🟢 Live | Carnation (SmartGov) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Clyde Hill | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Covington | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Des Moines | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ⚠️ gap | 🗂️ index | 🗂️ index |
-| Duvall | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Enumclaw | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Federal Way | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Hunts Point | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Issaquah | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Kenmore | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Kent | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Kirkland | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Lake Forest Park | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Maple Valley | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Medina | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Mercer Island | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Milton | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ⚠️ gap | 🗂️ index | 🗂️ index |
-| Newcastle | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Normandy Park | 🟢 Live | Normandy Park (SmartGov) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| North Bend | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Pacific | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Redmond | 🟢 Live | Redmond (EnerGov Civic Access) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Renton | 🟢 Live | Renton (EnerGov) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Sammamish | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ✅ | ✅ | ✅ |
-| SeaTac | 🟢 Live | SeaTac (LAMA) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Seattle | 🟢 Live | Seattle (SDCI Open Data) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Shoreline | 🟢 Live | Shoreline (eTRAKiT) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Skykomish | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
-| Snoqualmie | 🟢 Live | MyBuildingPermit | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Tukwila | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ⚠️ gap | 🗂️ index | 🗂️ index |
-| Woodinville | 🟢 Live | Woodinville (Accela) | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
-| Yarrow Point | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index | ➖ L&I | 🗂️ index | 🗂️ index |
+| Algona | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Auburn | 🟢 Live | MyBuildingPermit | ✅ | ✅ 19 | ➖ L&I | ✅ | ✅ |
+| Beaux Arts Village | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 5 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ 50 | ✅ | ✅ | ✅ |
+| Black Diamond | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Bothell | 🟢 Live | MyBuildingPermit | ✅ | ✅ 46 | ➖ L&I | ✅ | ✅ |
+| Burien | 🟢 Live | MyBuildingPermit | ✅ | ✅ 27 | ✅ | ✅ | ✅ |
+| Carnation | 🟢 Live | Carnation (SmartGov) | ✅ | ✅ 2 | ➖ L&I | ✅ | ✅ |
+| Clyde Hill | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 3 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Covington | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 24 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Des Moines | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 17 | ⚠️ gap | 🗂️ index | 🗂️ index |
+| Duvall | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 1 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Enumclaw | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 3 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Federal Way | 🟢 Live | MyBuildingPermit | ✅ | ✅ 46 | ✅ | ✅ | ✅ |
+| Hunts Point | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Issaquah | 🟢 Live | MyBuildingPermit | ✅ | ✅ 13 | ➖ L&I | ✅ | ✅ |
+| Kenmore | 🟢 Live | MyBuildingPermit | ✅ | ✅ 50 | ➖ L&I | ✅ | ✅ |
+| Kent | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 7 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Kirkland | 🟢 Live | MyBuildingPermit | ✅ | ✅ 13 | ✅ | ✅ | ✅ |
+| Lake Forest Park | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 1 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Maple Valley | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 8 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Medina | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 5 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Mercer Island | 🟢 Live | MyBuildingPermit | ✅ | ✅ 12 | ✅ | ✅ | ✅ |
+| Milton | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 0 | ⚠️ gap | 🗂️ index | 🗂️ index |
+| Newcastle | 🟢 Live | MyBuildingPermit | ✅ | ✅ 43 | ➖ L&I | ✅ | ✅ |
+| Normandy Park | 🟢 Live | Normandy Park (SmartGov) | ✅ | ✅ 21 | ✅ | ✅ | ✅ |
+| North Bend | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Pacific | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 8 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Redmond | 🟢 Live | Redmond (EnerGov Civic Access) | ✅ | ✅ 32 | ✅ | ✅ | ✅ |
+| Renton | 🟢 Live | Renton (EnerGov) | ✅ | ✅ 24 | ✅ | ✅ | ✅ |
+| Sammamish | 🟢 Live | MyBuildingPermit | ✅ | ✅ 11 | ✅ | ✅ | ✅ |
+| SeaTac | 🟢 Live | SeaTac (LAMA) | ✅ | ✅ 48 | ✅ | ✅ | ✅ |
+| Seattle | 🟢 Live | Seattle (SDCI Open Data) | ✅ | ✅ 50 | ✅ | ✅ | ✅ |
+| Shoreline | 🟢 Live | Shoreline (eTRAKiT) | ✅ | ✅ 38 | ➖ L&I | ✅ | ✅ |
+| Skykomish | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 3 | ➖ L&I | 🗂️ index | 🗂️ index |
+| Snoqualmie | 🟢 Live | MyBuildingPermit | ✅ | ✅ 48 | ➖ L&I | ✅ | ✅ |
+| Tukwila | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 6 | ⚠️ gap | 🗂️ index | 🗂️ index |
+| Woodinville | 🟢 Live | Woodinville (Accela) | ✅ | ✅ 9 | ➖ L&I | ✅ | ✅ |
+| Yarrow Point | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 1 | ➖ L&I | 🗂️ index | 🗂️ index |
 | _King County (unincorp.)_ | 🟢 Live | MyBuildingPermit (King County) + KC Accela | ✅ | ✅ | ➖ L&I | ✅ | ✅ |
 
 **Coverage:** 20/39 live · 19/39 indexed (issued history via the Assessor; status needs the city portal). Plus **King County (unincorporated)** for county-level permits (septic, critical areas, grading).

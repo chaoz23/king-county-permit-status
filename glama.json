@@ -7,7 +7,7 @@
   "tools": [
     {
       "name": "king_county_permit_status",
-      "description": "Live building-permit history and status for any King County, WA address, parcel or permit number — 20 city systems, unincorporated King County, the Assessor's parcel index and WA L&I electrical, normalized to one schema with provenance (record_url, is_open, trust_level, next_step, cite_as). Read-only."
+      "description": "Live building-permit history and status for any King County, WA address, parcel or permit number \u2014 plus contractor pull-history \u2014 across 20 live city systems, unincorporated King County, the Assessor's parcel index and WA L&I electrical, normalized with provenance (record_url, is_open + basis, trust_level, next_step, routing_by_type, summary, cite_as). Read-only."
     }
   ]
 }

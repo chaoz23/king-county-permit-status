@@ -225,7 +225,7 @@
    ]
   }
  },
- "checked_at": "2026-10-11T17:36:44+00:00",
+ "checked_at": "2026-10-11T17:47:18+00:00",
  "summary": {
   "ok": 27
  },
@@ -235,7 +235,7 @@
    "outcome": "ok",
    "records": 24,
    "detail": "24 records",
-   "elapsed_ms": 2361,
+   "elapsed_ms": 1987,
    "statuses": {
     "Pass": {
      "n": 9,
@@ -272,7 +272,7 @@
    "outcome": "ok",
    "records": 131,
    "detail": "131 records",
-   "elapsed_ms": 2217,
+   "elapsed_ms": 2264,
    "statuses": {
     "Completed": {
      "n": 105,
@@ -309,7 +309,7 @@
    "outcome": "ok",
    "records": 356,
    "detail": "356 records",
-   "elapsed_ms": 248,
+   "elapsed_ms": 286,
    "statuses": {
     "Closed": {
      "n": 234,
@@ -358,14 +358,14 @@
    "outcome": "ok",
    "records": 53,
    "detail": "53 records",
-   "elapsed_ms": 2269,
+   "elapsed_ms": 2091,
    "statuses": {
     "ARCHIVED": {
      "n": 8,
      "is_open": false
     },
     "DESTROYED": {
-     "n": 4,
+     "n": 5,
      "is_open": false
     },
     "CLOSED": {
@@ -387,7 +387,7 @@
    "outcome": "ok",
    "records": 32,
    "detail": "32 records",
-   "elapsed_ms": 4964,
+   "elapsed_ms": 5024,
    "statuses": {
     "Finaled": {
      "n": 24,
@@ -412,7 +412,7 @@
    "outcome": "ok",
    "records": 9,
    "detail": "9 records",
-   "elapsed_ms": 562,
+   "elapsed_ms": 676,
    "statuses": {
     "Finaled": {
      "n": 4,
@@ -433,7 +433,7 @@
    "outcome": "ok",
    "records": 14,
    "detail": "14 records",
-   "elapsed_ms": 875,
+   "elapsed_ms": 876,
    "statuses": {
     "Closed": {
      "n": 6,
@@ -458,7 +458,7 @@
    "outcome": "ok",
    "records": 21,
    "detail": "21 records",
-   "elapsed_ms": 825,
+   "elapsed_ms": 772,
    "statuses": {
     "Closed": {
      "n": 13,
@@ -491,7 +491,7 @@
    "outcome": "ok",
    "records": 2,
    "detail": "2 records",
-   "elapsed_ms": 439,
+   "elapsed_ms": 367,
    "statuses": {
     "Closed": {
      "n": 1,
@@ -508,7 +508,7 @@
    "outcome": "ok",
    "records": 178,
    "detail": "178 records; non-fatal: showing first 200 of 343 matches — narrow the search",
-   "elapsed_ms": 5027,
+   "elapsed_ms": 5219,
    "statuses": {
     "Permit Finalized": {
      "n": 138,
@@ -537,7 +537,7 @@
    "outcome": "ok",
    "records": 7,
    "detail": "7 records",
-   "elapsed_ms": 1639,
+   "elapsed_ms": 923,
    "statuses": {}
   },
   "lni": {
@@ -545,7 +545,7 @@
    "outcome": "ok",
    "records": 12,
    "detail": "12 records",
-   "elapsed_ms": 2585,
+   "elapsed_ms": 2544,
    "statuses": {
     "Inactive": {
      "n": 12,
@@ -558,7 +558,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 945,
+   "elapsed_ms": 909,
    "statuses": {}
   },
   "mbp:bellevue": {
@@ -566,7 +566,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 2633,
+   "elapsed_ms": 2706,
    "statuses": {}
   },
   "mbp:bothell": {
@@ -574,7 +574,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 654,
+   "elapsed_ms": 656,
    "statuses": {}
   },
   "mbp:burien": {
@@ -582,7 +582,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1428,
+   "elapsed_ms": 1374,
    "statuses": {}
   },
   "mbp:edmonds": {
@@ -590,7 +590,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 847,
+   "elapsed_ms": 900,
    "statuses": {}
   },
   "mbp:federal way": {
@@ -598,7 +598,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 982,
+   "elapsed_ms": 1002,
    "statuses": {}
   },
   "mbp:issaquah": {
@@ -606,7 +606,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 734,
+   "elapsed_ms": 776,
    "statuses": {}
   },
   "mbp:kenmore": {
@@ -614,7 +614,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 586,
+   "elapsed_ms": 542,
    "statuses": {}
   },
   "mbp:king county": {
@@ -622,7 +622,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 607,
+   "elapsed_ms": 643,
    "statuses": {}
   },
   "mbp:kirkland": {
@@ -630,7 +630,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 660,
+   "elapsed_ms": 645,
    "statuses": {}
   },
   "mbp:mercer island": {
@@ -638,7 +638,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 594,
+   "elapsed_ms": 521,
    "statuses": {}
   },
   "mbp:mill creek": {
@@ -646,7 +646,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 569,
+   "elapsed_ms": 557,
    "statuses": {}
   },
   "mbp:newcastle": {
@@ -654,7 +654,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 554,
+   "elapsed_ms": 533,
    "statuses": {}
   },
   "mbp:sammamish": {
@@ -662,7 +662,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 976,
+   "elapsed_ms": 926,
    "statuses": {}
   },
   "mbp:snoqualmie": {
@@ -670,9 +670,29 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 964,
+   "elapsed_ms": 891,
    "statuses": {}
   }
+ },
+ "qc": {
+  "passed": 28,
+  "failed": 0,
+  "errored": 0,
+  "slow": [
+   [
+    "real/Bellevue",
+    22.1
+   ],
+   [
+    "fake/nocity",
+    10.8
+   ],
+   [
+    "edge/gibberish",
+    11.1
+   ]
+  ],
+  "failing": []
  },
  "scorecard_qc": {
   "tally": {
@@ -690,15 +710,15 @@
     "index": 2
    },
    "auburn": {
-    "own": 19,
-    "index": 0
+    "own": 133,
+    "index": 6
    },
    "beaux arts village": {
     "own": 0,
     "index": 5
    },
    "bellevue": {
-    "own": 50,
+    "own": 359,
     "index": 0
    },
    "black diamond": {
@@ -706,7 +726,7 @@
     "index": 2
    },
    "bothell": {
-    "own": 46,
+    "own": 117,
     "index": 0
    },
    "burien": {
@@ -738,19 +758,19 @@
     "index": 3
    },
    "federal way": {
-    "own": 46,
-    "index": 4
+    "own": 120,
+    "index": 9
    },
    "hunts point": {
     "own": 0,
     "index": 2
    },
    "issaquah": {
-    "own": 13,
-    "index": 0
+    "own": 57,
+    "index": 2
    },
    "kenmore": {
-    "own": 50,
+    "own": 77,
     "index": 0
    },
    "kent": {
@@ -782,7 +802,7 @@
     "index": 0
    },
    "newcastle": {
-    "own": 43,
+    "own": 85,
     "index": 3
    },
    "normandy park": {
@@ -810,15 +830,15 @@
     "index": 5
    },
    "seatac": {
-    "own": 48,
-    "index": 2
+    "own": 178,
+    "index": 14
    },
    "seattle": {
-    "own": 50,
-    "index": 0
+    "own": 131,
+    "index": 5
    },
    "shoreline": {
-    "own": 38,
+    "own": 53,
     "index": 0
    },
    "skykomish": {
@@ -826,7 +846,7 @@
     "index": 3
    },
    "snoqualmie": {
-    "own": 48,
+    "own": 57,
     "index": 0
    },
    "tukwila": {

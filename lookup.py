@@ -1975,6 +1975,19 @@ def lookup(raw_input: str, limit: int | None = DEFAULT_LIMIT, since: str | None 
     return shape_result(lookup_all(raw_input), limit=limit, since=since, types=types)
 
 
+MBP_FANOUT_WORKERS = 5
+
+
+def _mbp_fanout(fn, jids=None):
+    """Run fn(jid) for several MBP jurisdictions concurrently; return
+    [(jid, result)] in the original order (deterministic `searched`)."""
+    jids = list(JURISDICTIONS if jids is None else jids)
+    if len(jids) <= 1:
+        return [(j, fn(j)) for j in jids]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(MBP_FANOUT_WORKERS, len(jids))) as pool:
+        return list(zip(jids, pool.map(fn, jids)))
+
+
 def lookup_all(raw_input: str) -> dict:
     """Unshaped lookup: every unique permit found, no summary."""
     if not raw_input.strip():
@@ -2040,25 +2053,25 @@ def lookup_all(raw_input: str) -> dict:
         exact = input_type == "permit"
 
         def t_mbp():
+            # 15 MBP jurisdictions, each its own request: run them concurrently
+            # (the opener/cookie jar are thread-safe), aggregate in fixed order.
             s, p, er = [], [], []
+            if opener is None or token is None:
+                return s, p, er
             if input_type == "permit":
-                for jid, jname in JURISDICTIONS.items():
-                    r = search_mbp(jid, search_by="PermitNumber",
-                                   permit_number=value)
-                    if r is None:
-                        break
+                results = _mbp_fanout(lambda jid: search_mbp(jid, search_by="PermitNumber",
+                                                             permit_number=value))
+                for jid, r in results:
+                    jname = JURISDICTIONS[jid]
                     if isinstance(r, list) and r:
                         p.extend(r)
                         s.append(jname)
-                        break  # permit numbers are unique
                     elif isinstance(r, str):
                         er.append(f"{jname}: {r}")
             else:
-                for jid in JURISDICTIONS:
-                    r = search_mbp(jid, parcel=value)
-                    if r is None:
-                        continue
-                    jname = JURISDICTIONS.get(jid, jid)
+                results = _mbp_fanout(lambda jid: search_mbp(jid, parcel=value))
+                for jid, r in results:
+                    jname = JURISDICTIONS[jid]
                     s.append(jname)
                     if isinstance(r, list):
                         p.extend(r)
@@ -2181,7 +2194,10 @@ def lookup_all(raw_input: str) -> dict:
             elif not city and not unincorporated_kc:
                 # No city detected and no polygon answer — search all jurisdictions
                 juris_to_search = list(JURISDICTIONS.keys())
-            for jid in juris_to_search:
+            if opener is None or token is None:
+                return s, p, er, None
+
+            def one(jid):
                 # Parcel first when the address resolved to a PIN: MBP's house +
                 # street search trips its "too many results" cap on busy streets
                 # (Burien city hall: cap by street, 42 rows by parcel) and misses
@@ -2198,17 +2214,22 @@ def lookup_all(raw_input: str) -> dict:
                     results = search_mbp(jid, **criteria)
                 elif isinstance(results, str):
                     criteria = {"parcel": resolved_parcel}
-                if results is None:
-                    continue
-                jname = JURISDICTIONS.get(jid, jid)
-                if is_mbp_capped(results) and criteria and opener is not None:
+                if is_mbp_capped(results) and criteria:
                     # Busy parcel/street: split by applied-date windows (#81).
                     rows, still_capped = search_permits_split(opener, token, jid, **criteria)
-                    p.extend(rows)
+                    return ("split", rows, still_capped)
+                return ("plain", results, None)
+
+            for jid, (kind, results, still_capped) in _mbp_fanout(one, juris_to_search):
+                jname = JURISDICTIONS.get(jid, jid)
+                if kind == "split":
+                    p.extend(results)
                     s.append(f"{jname} (MyBuildingPermit, split by year)")
                     if still_capped:
                         er.append(f"{jname}: MyBuildingPermit capped even per year for "
                                   f"{', '.join(still_capped)} — those years are incomplete")
+                    continue
+                if results is None:
                     continue
                 s.append(jname)
                 if isinstance(results, list):

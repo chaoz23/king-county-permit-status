@@ -1,4 +1,4 @@
-# Epic 2 — Resolution & Reach (Oct 2026)
+# Epic 2 — Resolution & Reach (Oct 2026) — **released as v1.1.0, 2026-10-11**
 
 Epic 1 ("coverage and hardening") reached the ceiling of what public portals
 allow: **20 cities live, 19 indexed via the King County Assessor**, every row
@@ -31,3 +31,14 @@ what is their status*. Anything that changes that purpose is a separate tool.
 - Unit suite green; `qc_scorecard` ≥ 39 PASS with Milton the only WARN;
   `source_health` all `ok` from the runner; hosted `/healthz` on the new build.
 - README scorecard regenerated; vendor map published; `tool.json` matches `--schema`.
+
+## Outcome (2026-10-11)
+
+All twelve rows done. Shipped #81 #79 #36 #80 #82 #28 #27 (+ a concurrent MBP fan-out);
+closed #26 (done), #56 (out of scope), and — by Dan's scope rule — #29 and #61 as won't-fix.
+Open by design: #60, #18, #21, #23 (documented in the vendor map).
+
+Final QC: unit 267/267 · health 27/27 · smoke 28/28 · scorecard 39 PASS / 1 WARN (Milton) /
+0 FAIL · hosted 1.1.0 verified (`/healthz`, `/vendor-map`, MCP args, contractor REST).
+Registry re-publish of `server.json` 1.1.0 pending (`mcp-publisher publish`).
+

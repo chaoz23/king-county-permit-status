@@ -223,8 +223,12 @@ def get_session():
 
 
 def search_permits(opener, token, juris_id, search_by="Location",
-                   street="", house="", parcel="", permit_number="") -> list[dict] | str:
-    """Search permits in a single jurisdiction. Returns list or error string."""
+                   street="", house="", parcel="", permit_number="",
+                   from_date="", to_date="", date_basis="Applied") -> list[dict] | str:
+    """Search permits in a single jurisdiction. Returns list or error string.
+
+    from_date/to_date (MM/DD/YYYY) narrow by date_basis (Applied | Issued |
+    Finaled). MBP only honours the dates when SelectedDateRanges is sent."""
     form = {
         "__RequestVerificationToken": token,
         "SearchBy": search_by,
@@ -237,9 +241,11 @@ def search_permits(opener, token, juris_id, search_by="Location",
         "ContractorCompany": "",
         "ContractorLicNum": "",
         "ApplicantLastName": "",
-        "FromDate": "",
-        "ToDate": "",
+        "FromDate": from_date,
+        "ToDate": to_date,
     }
+    if from_date or to_date:
+        form["SelectedDateRanges"] = date_basis
     data = urllib.parse.urlencode(form).encode("utf-8")
     req = urllib.request.Request(SEARCH_URL, data=data, headers={
         "User-Agent": "Mozilla/5.0",
@@ -254,6 +260,56 @@ def search_permits(opener, token, juris_id, search_by="Location",
         return result if isinstance(result, list) else []
     except Exception as e:
         return f"Error: {e}"
+
+
+MBP_CAP_TEXT = "too many results"
+MBP_SPLIT_WINDOW_YEARS = 2
+MBP_SPLIT_FLOOR_YEAR = 1990      # MBP history starts in the 1990s; stop here
+
+
+def is_mbp_capped(result) -> bool:
+    return isinstance(result, str) and MBP_CAP_TEXT in result.lower()
+
+
+def search_permits_split(opener, token, juris_id, **criteria) -> tuple[list[dict], list[str]]:
+    """Beat MBP's "too many results" cap (#81): re-run the same criteria in
+    applied-date windows (2 years, then 1 year where a window is still capped)
+    from this year back to MBP_SPLIT_FLOOR_YEAR, concurrently, and union the
+    rows. Returns (rows, still_capped_window_labels)."""
+    this_year = datetime.now().year
+    windows = [(y - MBP_SPLIT_WINDOW_YEARS + 1, y)
+               for y in range(this_year, MBP_SPLIT_FLOOR_YEAR - 1, -MBP_SPLIT_WINDOW_YEARS)]
+
+    def run(window):
+        lo, hi = window
+        r = search_permits(opener, token, juris_id, from_date=f"01/01/{lo}",
+                           to_date=f"12/31/{hi}", **criteria)
+        if is_mbp_capped(r) and lo != hi:          # shrink to single years
+            out, capped = [], []
+            for y in range(lo, hi + 1):
+                ry = search_permits(opener, token, juris_id, from_date=f"01/01/{y}",
+                                    to_date=f"12/31/{y}", **criteria)
+                if isinstance(ry, list):
+                    out.extend(ry)
+                elif is_mbp_capped(ry):
+                    capped.append(str(y))
+            return out, capped
+        if isinstance(r, list):
+            return r, []
+        return [], ([f"{lo}-{hi}"] if is_mbp_capped(r) else [])
+
+    rows, capped = [], []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        for got, bad in pool.map(run, windows):
+            rows.extend(got)
+            capped.extend(bad)
+    seen, unique = set(), []
+    for p in rows:
+        k = p.get("PermitNumber")
+        if k not in seen:
+            seen.add(k)
+            unique.append(p)
+    return unique, capped
 
 
 def format_permit(raw: dict) -> dict:
@@ -2024,15 +2080,28 @@ def lookup_all(raw_input: str) -> dict:
                     results = search_mbp(jid, parcel=resolved_parcel)
                     if results == []:
                         results = None
+                criteria = None
                 if results is None:
-                    results = search_mbp(jid, house=house, street=street)
+                    criteria = {"house": house, "street": street}
+                    results = search_mbp(jid, **criteria)
+                elif isinstance(results, str):
+                    criteria = {"parcel": resolved_parcel}
                 if results is None:
                     continue
                 jname = JURISDICTIONS.get(jid, jid)
+                if is_mbp_capped(results) and criteria and opener is not None:
+                    # Busy parcel/street: split by applied-date windows (#81).
+                    rows, still_capped = search_permits_split(opener, token, jid, **criteria)
+                    p.extend(rows)
+                    s.append(f"{jname} (MyBuildingPermit, split by year)")
+                    if still_capped:
+                        er.append(f"{jname}: MyBuildingPermit capped even per year for "
+                                  f"{', '.join(still_capped)} — those years are incomplete")
+                    continue
                 s.append(jname)
                 if isinstance(results, list):
                     p.extend(results)
-                elif isinstance(results, str) and "too many" in results.lower():
+                elif is_mbp_capped(results):
                     er.append(f"{jname}: {results}")
             return s, p, er, None
 

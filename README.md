@@ -96,6 +96,7 @@ mailing city is only used when geocoding fails (`jurisdiction.basis` says which)
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |
 | `parcel_id` | County-namespaced parcel, e.g. `king:7222000353` or `pierce:5985002900`, when the query was or resolved to a parcel |
 | `jurisdiction` | Where the query was routed and why: `city`, `basis` (`city-limits` = the geocoded point falls inside that city's polygon — authoritative; `geocoder-city`; `address-text` = the mailing city in the query, used only when geocoding fails), `county`, `unincorporated` (true → county permits only, even if the mailing city says "Kent") |
+| `routing_by_type` | Where each kind of permit lives for the resolved place — `building`, `mechanical_plumbing`, `electrical`, `land_use`, `engineering_row`, `fire`, `grading`, `septic` → `{system, portal, live, note}`. `live: true` means this tool searched that system; otherwise `portal` is where to look (e.g. septic is always King County Public Health; electrical is L&I unless the city self-runs it) |
 | `address_resolution` | How well the geocoder matched an address: `matched_address`, `score`, `match_type` (`point` = exact address point; `interpolated` = number placed along the street; `street`), `partial_match`, `street_number_snapped`, `parcel_basis` (`address-point`, `parcel-polygon`, or `nearby-parcel` when the PIN came from the parcel layer under/near an interpolated point — then `candidate_parcels` lists the alternatives) |
 | `cite_as` | One-line attribution string for generated text |
 

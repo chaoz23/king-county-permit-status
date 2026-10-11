@@ -215,6 +215,10 @@
           }
         }
       },
+      "routing_by_type": {
+        "type": "object",
+        "description": "Per permit type (building, mechanical_plumbing, electrical, land_use, engineering_row, fire, grading, septic) for the resolved jurisdiction: {system, portal, live, note}. live=true means that system is searched by this tool; otherwise the portal is where to look. Present for address queries and parcel queries that resolved a city."
+      },
       "address_resolution": {
         "type": "object",
         "description": "How well the geocoder matched an address query. match_type: point (exact address point), interpolated (number placed along the street; no parcel), street (street only). partial_match is true for anything but point; street_number_snapped when the matched house number differs from the one given.",

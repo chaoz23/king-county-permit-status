@@ -12,6 +12,9 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+import lookup  # noqa: E402  — the per-type routing table (#28) lives with the adapters
 DATA = os.path.join(ROOT, "routing_data.json")
 README = os.path.join(ROOT, "README.md")
 HEALTH = os.path.join(ROOT, "source_health.json")   # written by scripts/source_health.py
@@ -132,11 +135,15 @@ def classify(city, mbp, own_elec, health=None):
     else:
         electrical = "gap"          # self-run electrical, no feed we search
 
-    # Non-live cities still get issued-permit *history* (no status) from the
-    # King County Assessor's parcel index, which every city reports into.
-    building = "yes" if live_building else "index"
-    trade = "yes" if live_building else "index"    # mechanical / plumbing
-    landuse = "yes" if live_building else "index"
+    # Type columns come from the per-type routing table (#28), which is derived
+    # from the same adapter config the lookup searches. Non-live cities still
+    # get issued-permit *history* (no status) from the King County Assessor's
+    # parcel index, which every city reports into.
+    routing = lookup.permit_type_routing(key)
+    building = "yes" if routing["building"]["live"] else "index"
+    trade = "yes" if routing["mechanical_plumbing"]["live"] else "index"
+    landuse = "yes" if routing["land_use"]["live"] else "index"
+    assert (routing["building"]["live"] == live_building), f"routing table disagrees with routing_data for {city}"
 
     # status
     if live_building:

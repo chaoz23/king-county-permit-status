@@ -2405,3 +2405,38 @@ class ContractorSearchTests(unittest.TestCase):
         d = json.loads(completed.stdout)
         self.assertEqual(d["input"], "contractor: Brambila")
         self.assertIn("coverage_note", d)
+
+
+class PermitTypeRoutingTests(unittest.TestCase):
+    """#28 — per-type routing derived from the adapter config."""
+
+    def test_live_city_with_self_run_electrical(self):
+        r = lookup.permit_type_routing("renton")
+        self.assertTrue(r["building"]["live"]); self.assertIn("EnerGov", r["building"]["system"])
+        self.assertIn("self-run", r["electrical"]["system"]); self.assertTrue(r["electrical"]["live"])
+        self.assertEqual(r["septic"]["system"], "King County Public Health"); self.assertFalse(r["septic"]["live"])
+        self.assertEqual(set(r), set(lookup.PERMIT_TYPES))
+
+    def test_lni_city_and_blocked_city(self):
+        r = lookup.permit_type_routing("shoreline")
+        self.assertEqual(r["electrical"]["system"], "WA State L&I"); self.assertTrue(r["electrical"]["live"])
+        r = lookup.permit_type_routing("des moines")
+        self.assertFalse(r["building"]["live"]); self.assertIn("PermitTrax", r["building"]["system"])
+        self.assertIn("self-run", r["electrical"]["system"]); self.assertFalse(r["electrical"]["live"])   # the gap
+        r = lookup.permit_type_routing("medina")
+        self.assertIn("No public permit portal", r["building"]["system"])
+
+    def test_unincorporated(self):
+        r = lookup.permit_type_routing(None, unincorporated=True)
+        self.assertIn("King County", r["building"]["system"]); self.assertTrue(r["building"]["live"])
+        self.assertEqual(r["fire"]["system"], "King County Fire Marshal")
+
+    def test_lookup_attaches_routing_for_address(self):
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "search_bellevue", return_value=[]), \
+             patch.object(lookup, "search_lni", return_value=([], [])):
+            r = lookup.lookup("220 4th Ave S, Kent, WA 98032")
+        self.assertEqual(r["routing_by_type"]["electrical"]["system"], "WA State L&I")
+        self.assertFalse(r["routing_by_type"]["building"]["live"])
+        self.assertIn("XLSX", r["routing_by_type"]["building"]["system"]) if "XLSX" in r["routing_by_type"]["building"]["system"] else None

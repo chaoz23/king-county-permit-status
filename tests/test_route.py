@@ -142,3 +142,10 @@ class RouteCliTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(json.loads(completed.stdout)["action"], "routed")
         self.assertNotIn("\n ", completed.stdout)
+
+
+class RoutingByTypeTests(unittest.TestCase):
+    def test_route_result_carries_per_type_table(self):
+        result = route.route("1817 Morris Ave S, Renton, WA", "rewire kitchen", )
+        self.assertIn("routing_by_type", result)
+        self.assertIn("EnerGov", result["routing_by_type"]["building"]["system"])

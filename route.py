@@ -264,6 +264,14 @@ def route(address: str, work: str) -> dict:
             **routing,
         })
 
+    # The full per-type table for this place (#28), from the lookup tool's
+    # adapter config so it matches what the lookup actually searches.
+    try:
+        import lookup as _lookup
+        routing_by_type = _lookup.permit_type_routing(city, unincorporated=city is None)
+    except Exception:  # route.py must keep working standalone
+        routing_by_type = None
+
     # Group by portal for a cleaner summary
     by_portal = {}
     for r in routes:
@@ -291,6 +299,7 @@ def route(address: str, work: str) -> dict:
         "work_description": work,
         "permits": routes,
         "portals": list(by_portal.values()),
+        "routing_by_type": routing_by_type,
         "message": summary,
         "data_verified": data.get("last_verified"),
     }

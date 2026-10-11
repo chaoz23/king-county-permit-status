@@ -1816,6 +1816,77 @@ def search_lama(city: str, input_type: str, value: str) -> tuple[list[dict], lis
     return permits, errors
 
 
+# --- Per-permit-type routing (#28) -------------------------------------------
+# Which system holds which kind of permit for a city. Derived from the same
+# adapter config the lookup uses, so it cannot drift from what we actually
+# search; the scorecard's type columns and the vendor map read it too.
+PERMIT_TYPES = ("building", "mechanical_plumbing", "electrical", "land_use",
+                "engineering_row", "fire", "grading", "septic")
+LNI_SEARCH_URL = "https://secure.lni.wa.gov/epispub/frmPermitSearchMain.aspx"
+KC_SEPTIC_URL = "https://kingcounty.gov/en/dept/dph/health-safety/environmental-health/septic-systems"
+KC_PERMITS_URL = "https://aca-prod.accela.com/KINGCO/Cap/CapHome.aspx?module=Building"
+MBP_SEARCH_URL = "https://permitsearch.mybuildingpermit.com/"
+
+
+def city_system(city_key: str | None, unincorporated: bool = False) -> dict:
+    """The permitting system behind a city's building-side permits:
+    {system, portal, live, vendor_class}."""
+    if unincorporated or city_key == "king county":
+        return {"system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+                "portal": KC_PERMITS_URL, "live": True, "vendor_class": "mbp+accela"}
+    k = (city_key or "").lower()
+    if k == "renton":
+        return {"system": "Renton EnerGov", "portal": ENERGOV_PORTALS["renton"]["url"], "live": True, "vendor_class": "energov"}
+    if k == "seattle":
+        return {"system": "Seattle SDCI (Accela portal; open data)", "portal": SEPARATE_PORTALS["seattle"], "live": True, "vendor_class": "socrata"}
+    if k == "bellevue":
+        return {"system": "Bellevue (MyBuildingPermit + Open Data)", "portal": MBP_SEARCH_URL, "live": True, "vendor_class": "mbp+arcgis"}
+    if k == "shoreline":
+        return {"system": "eTRAKiT (CentralSquare)", "portal": SHORELINE_ETRAKIT + "/", "live": True, "vendor_class": "etrakit"}
+    if k in CIVIC_ACCESS_PORTALS:
+        return {"system": "Tyler EnerGov Civic Access", "portal": f"https://{CIVIC_ACCESS_PORTALS[k]['host']}/apps/selfservice#/home", "live": True, "vendor_class": "civicaccess"}
+    if k in ACCELA_PORTALS:
+        return {"system": "Accela Citizen Access", "portal": f"{ACCELA_HOST}/{ACCELA_PORTALS[k]}/Cap/CapHome.aspx?module=DevelopmentServices", "live": True, "vendor_class": "accela"}
+    if k in SMARTGOV_PORTALS:
+        return {"system": "SmartGov (Granicus)", "portal": f"https://{SMARTGOV_PORTALS[k]}.smartgovcommunity.com/ApplicationPublic/ApplicationSearch", "live": True, "vendor_class": "smartgov"}
+    if k in LAMA_PORTALS:
+        return {"system": "LAMA", "portal": LAMA_PORTALS[k] + "/Search.aspx", "live": True, "vendor_class": "lama"}
+    if k in JURIS_BY_NAME:
+        return {"system": "MyBuildingPermit (eCityGov)", "portal": MBP_SEARCH_URL, "live": True, "vendor_class": "mbp"}
+    if k in MANUAL_PORTALS:
+        m = MANUAL_PORTALS[k]
+        return {"system": m["vendor"], "portal": m["search_url"], "live": False, "vendor_class": "blocked"}
+    return {"system": "No public permit portal (history via KC Assessor index)",
+            "portal": SEPARATE_PORTALS.get(k), "live": False, "vendor_class": "none"}
+
+
+def permit_type_routing(city_key: str | None, unincorporated: bool = False) -> dict:
+    """permit type → {system, portal, live, note} for a city (or unincorporated KC)."""
+    k = (city_key or "").lower()
+    sysd = city_system(k, unincorporated)
+    unincorp = unincorporated or k == "king county"
+    name = "King County" if unincorp else display_city(k) if k else "the jurisdiction"
+    own_elec = k in CITIES_OWN_ELECTRICAL and not unincorp
+    bld = {"system": sysd["system"], "portal": sysd["portal"], "live": sysd["live"]}
+    out = {
+        "building": {**bld, "note": "Structures, additions, remodels, roofing, demolition."},
+        "mechanical_plumbing": {**bld, "note": "HVAC, gas piping, water heaters, plumbing — same system as building."},
+        "land_use": {**bld, "note": "Zoning, subdivisions, SEPA, critical areas — same system as building."},
+        "engineering_row": {**bld, "note": f"Right-of-way, utility and site/civil permits — {name} Public Works, usually in the same system."},
+        "fire": ({"system": "King County Fire Marshal", "portal": KC_PERMITS_URL, "live": True,
+                  "note": "Fire permits for unincorporated King County."} if unincorp else
+                 {**bld, "note": f"Fire alarm/sprinkler and operational permits — {name} fire marshal, usually filed in the same system."}),
+        "grading": {**bld, "note": "Grading/clearing in critical areas may also need King County review inside city limits."},
+        "electrical": ({"system": f"{name} (self-run electrical program)", "portal": sysd["portal"], "live": sysd["live"],
+                        "note": f"{name} issues its own electrical permits; WA L&I does not."} if own_elec else
+                       {"system": "WA State L&I", "portal": LNI_SEARCH_URL, "live": True,
+                        "note": "Electrical permits are issued by Labor & Industries (searched here, 2020+)."}),
+        "septic": {"system": "King County Public Health", "portal": KC_SEPTIC_URL, "live": False,
+                   "note": "On-site sewage is always Public Health, regardless of city."},
+    }
+    return out
+
+
 CITE_AS = "King County Permit Status (github.com/chaoz23/king-county-permit-status)"
 
 # Status words that mean a permit is no longer active, across every vendor
@@ -2410,6 +2481,10 @@ def lookup_all(raw_input: str) -> dict:
         "county": (location or {}).get("county"),
         "unincorporated": (location or {}).get("unincorporated"),
     }
+    if city or (location or {}).get("unincorporated"):
+        # Where each kind of permit lives for this place (#28): what was
+        # searched live here, and which portal to use for the rest.
+        result["routing_by_type"] = permit_type_routing(city, bool((location or {}).get("unincorporated")))
     if location:
         result["address_resolution"] = {
             k: location.get(k) for k in ("matched_address", "score", "match_type",
@@ -2664,6 +2739,10 @@ TOOL_SCHEMA = {
                     "county": {"type": ["string", "null"]},
                     "unincorporated": {"type": ["boolean", "null"]},
                 },
+            },
+            "routing_by_type": {
+                "type": "object",
+                "description": "Per permit type (building, mechanical_plumbing, electrical, land_use, engineering_row, fire, grading, septic) for the resolved jurisdiction: {system, portal, live, note}. live=true means that system is searched by this tool; otherwise the portal is where to look. Present for address queries and parcel queries that resolved a city.",
             },
             "address_resolution": {
                 "type": "object",

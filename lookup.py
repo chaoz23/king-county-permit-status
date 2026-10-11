@@ -585,18 +585,35 @@ def _parse_assessor(body: str, pin: str) -> list[dict]:
     return permits
 
 
-def search_assessor(pin: str) -> tuple[list[dict], list[str]]:
-    """Issued-permit history for a 10-digit PIN from the Assessor's parcel page."""
+def _parse_assessor_site_address(body: str) -> str | None:
+    """The parcel's site address from the Assessor page ('919 109TH AVE NE')."""
+    # The label is followed by a run of closing/opening tags, then the text.
+    m = re.search(r"Site Address:?(?:\s*<[^>]+>)*\s*([^<]+)", body)
+    addr = re.sub(r"\s+", " ", html_unescape(m.group(1))).strip() if m else ""
+    addr = re.sub(r"\s+\d{5}(?:-\d{4})?$", "", addr)     # '400 BROAD ST 98109' → house + street
+    return addr or None
+
+
+def assessor_lookup(pin: str) -> tuple[list[dict], list[str], str | None]:
+    """Assessor parcel page → (issued-permit rows, errors, site address).
+    The site address lets a bare parcel query reach address-only sources
+    (Seattle's open data has no parcel column — #36)."""
     pin = re.sub(r"\D", "", pin or "")
     if len(pin) != 10:
-        return [], []
+        return [], [], None
     try:
         body = urllib.request.urlopen(urllib.request.Request(
             ASSESSOR_DETAIL_URL + pin, headers={"User-Agent": "Mozilla/5.0"}),
             timeout=30).read().decode("utf-8", "replace")
     except Exception as error:
-        return [], [str(error)]
-    return _parse_assessor(body, pin), []
+        return [], [str(error)], None
+    return _parse_assessor(body, pin), [], _parse_assessor_site_address(body)
+
+
+def search_assessor(pin: str) -> tuple[list[dict], list[str]]:
+    """Issued-permit history for a 10-digit PIN from the Assessor's parcel page."""
+    permits, errors, _site = assessor_lookup(pin)
+    return permits, errors
 
 
 # --- Jurisdiction from geometry (#39) --------------------------------------
@@ -2041,10 +2058,26 @@ def lookup_all(raw_input: str) -> dict:
                 thunks.append(t_lama)
 
         if input_type == "parcel":          # county-wide issued-permit index
+            # Fetched up front (~1 s): its site address is what lets a bare PIN
+            # reach Seattle, whose open data has no parcel column (#36), and
+            # gives parcel queries a jurisdiction like address queries have.
+            as_permits, as_errors, site_address = assessor_lookup(value)
+
             def t_assessor():
-                p, er = search_assessor(value)
-                return ([ASSESSOR_LABEL], p, [f"Assessor: {e}" for e in er])
+                return ([ASSESSOR_LABEL], as_permits, [f"Assessor: {e}" for e in as_errors])
             thunks.append(t_assessor)
+            if site_address:
+                site_loc = resolve_location(site_address)
+                if site_loc:
+                    location = site_loc
+                    city = jurisdiction_city_key(site_loc)
+                    jurisdiction_basis = "parcel-site-address"
+                if jurisdiction_city_key(site_loc) == "seattle":
+                    def t_seattle_parcel(addr=site_address):
+                        p, er = search_seattle("address", addr)
+                        return (["Seattle Open Data (via parcel site address)"], p,
+                                [f"Seattle Open Data — {e}" for e in er])
+                    thunks.append(t_seattle_parcel)
 
         def _safe(fn):
             try:
@@ -2541,10 +2574,10 @@ TOOL_SCHEMA = {
             "parcel_id": {"type": ["string", "null"], "description": "County-namespaced parcel id, e.g. 'king:7222000353' or 'pierce:5985002900', when the query was or resolved to a parcel"},
             "jurisdiction": {
                 "type": "object",
-                "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon — authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), null (none). unincorporated=true means county permits only.",
+                "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon — authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), parcel-site-address (a parcel query, resolved through the Assessor's site address), null (none). unincorporated=true means county permits only.",
                 "properties": {
                     "city": {"type": ["string", "null"]},
-                    "basis": {"type": ["string", "null"], "enum": ["city-limits", "geocoder-city", "address-text", None]},
+                    "basis": {"type": ["string", "null"], "enum": ["city-limits", "geocoder-city", "address-text", "parcel-site-address", None]},
                     "county": {"type": ["string", "null"]},
                     "unincorporated": {"type": ["boolean", "null"]},
                 },

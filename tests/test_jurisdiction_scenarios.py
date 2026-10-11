@@ -10,18 +10,21 @@ import route
 _GEO_PATCH = patch.object(lookup, "resolve_location", return_value=None)
 _LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
 _ASSESSOR_PATCH = patch.object(lookup, "search_assessor", return_value=([], []))
+_ASSESSOR2_PATCH = patch.object(lookup, "assessor_lookup", return_value=([], [], None))
 
 
 def setUpModule():
     _GEO_PATCH.start()
     _LAMA_PATCH.start()
     _ASSESSOR_PATCH.start()
+    _ASSESSOR2_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
     _LAMA_PATCH.stop()
     _ASSESSOR_PATCH.stop()
+    _ASSESSOR2_PATCH.stop()
 
 
 def mbp_permit(number="B-100", jurisdiction="Bellevue"):

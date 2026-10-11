@@ -19,18 +19,22 @@ _REAL_LAMA = lookup.search_lama            # for tests of the adapter itself
 _LAMA_PATCH = patch.object(lookup, "search_lama", return_value=([], []))
 _REAL_ASSESSOR = lookup.search_assessor
 _ASSESSOR_PATCH = patch.object(lookup, "search_assessor", return_value=([], []))
+_REAL_ASSESSOR_LOOKUP = lookup.assessor_lookup
+_ASSESSOR2_PATCH = patch.object(lookup, "assessor_lookup", return_value=([], [], None))
 
 
 def setUpModule():
     _GEO_PATCH.start()
     _LAMA_PATCH.start()
     _ASSESSOR_PATCH.start()
+    _ASSESSOR2_PATCH.start()
 
 
 def tearDownModule():
     _GEO_PATCH.stop()
     _LAMA_PATCH.stop()
     _ASSESSOR_PATCH.stop()
+    _ASSESSOR2_PATCH.stop()
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1853,12 +1857,13 @@ class AssessorIndexTests(unittest.TestCase):
     def test_no_section_means_no_rows(self):
         self.assertEqual(lookup._parse_assessor("<html>nothing</html>", "1"), [])
 
-    def test_search_assessor_requires_ten_digit_pin(self):
-        self.assertEqual(_REAL_ASSESSOR("123"), ([], []))
+    def test_assessor_lookup_requires_ten_digit_pin(self):
+        self.assertEqual(_REAL_ASSESSOR_LOOKUP("123"), ([], [], None))
         with patch.object(lookup.urllib.request, "urlopen") as uo:
             uo.return_value.read.return_value = ASSESSOR_HTML.encode()
-            permits, errors = _REAL_ASSESSOR("775980-0010")
+            permits, errors, site = _REAL_ASSESSOR_LOOKUP("775980-0010")
         self.assertEqual(len(permits), 3)
+        self.assertIsNone(site)                                   # fixture has no Site Address block
         self.assertIn("ParcelNbr=7759800010", uo.call_args[0][0].full_url)
 
     def _stub(self):
@@ -1909,7 +1914,7 @@ class AssessorIndexTests(unittest.TestCase):
              patch.object(lookup, "search_energov_civicaccess", return_value=([], [])), \
              patch.object(lookup, "search_accela", return_value=([], [])), \
              patch.object(lookup, "search_smartgov", return_value=([], [])), \
-             patch.object(lookup, "search_assessor", return_value=(rec, [])) as asr:
+             patch.object(lookup, "assessor_lookup", return_value=(rec, [], None)) as asr:
             result = lookup.lookup("7759800010")
         asr.assert_called_once_with("7759800010")
         nums = [p["permit_number"] for p in result["permits"]]
@@ -2279,3 +2284,67 @@ class IsOpenBasisTests(unittest.TestCase):
         props = lookup.TOOL_SCHEMA["output_schema"]["properties"]["permits"]["items"]["properties"]
         self.assertIn("Heuristic", props["is_open"]["description"])
         self.assertIn("is_open_basis", props)
+
+
+class SeattleParcelTests(unittest.TestCase):
+    """#36 — a Seattle PIN reaches Seattle's open data via the Assessor site address."""
+
+    def test_site_address_parsed(self):
+        body = '<td>Site Address</td><td><span>919 109TH AVE NE</span></td>'
+        self.assertEqual(lookup._parse_assessor_site_address(body), "919 109TH AVE NE")
+        body = '<td>Site Address</td><td>400 BROAD ST 98109</td>'
+        self.assertEqual(lookup._parse_assessor_site_address(body), "400 BROAD ST")   # ZIP dropped
+        self.assertIsNone(lookup._parse_assessor_site_address("<html/>"))
+
+    def _common(self):
+        for p in (patch.object(lookup, "get_session", return_value=(object(), "tok")),
+                  patch.object(lookup, "search_permits", return_value=[]),
+                  patch.object(lookup, "search_energov", return_value=[]),
+                  patch.object(lookup, "search_bellevue", return_value=[]),
+                  patch.object(lookup, "search_shoreline", return_value=([], [])),
+                  patch.object(lookup, "search_energov_civicaccess", return_value=([], [])),
+                  patch.object(lookup, "search_accela", return_value=([], [])),
+                  patch.object(lookup, "search_smartgov", return_value=([], []))):
+            p.start(); self.addCleanup(p.stop)
+
+    def test_seattle_pin_fans_out_to_seattle_by_site_address(self):
+        self._common()
+        loc = {"matched_address": "400 BROAD ST", "score": 100, "match_type": "point", "partial_match": False,
+               "street_number_snapped": False, "county": "king", "parcel_id": "king:1985200495",
+               "pin": "1985200495", "geocoder_city": "Seattle", "jurisdiction": "Seattle",
+               "jurisdiction_basis": "city-limits", "unincorporated": False, "parcel_basis": "address-point"}
+        sea = [{"permit_number": "6145915-CN", "type": "Building", "status": "Issued", "description": "",
+                "address": "400 BROAD ST", "jurisdiction": "Seattle SDCI", "applied_date": "2024-01-02",
+                "issued_date": None, "finaled_date": None, "expires_date": None, "portal": None}]
+        with patch.object(lookup, "assessor_lookup", return_value=([], [], "400 BROAD ST")), \
+             patch.object(lookup, "resolve_location", return_value=loc) as rl, \
+             patch.object(lookup, "search_seattle", return_value=(sea, [])) as ss:
+            r = lookup.lookup("1985200495")
+        rl.assert_called_once_with("400 BROAD ST")
+        ss.assert_called_once_with("address", "400 BROAD ST")
+        self.assertIn("Seattle Open Data (via parcel site address)", r["searched"])
+        self.assertEqual(r["jurisdiction"], {"city": "Seattle", "basis": "parcel-site-address",
+                                             "county": "king", "unincorporated": False})
+        self.assertEqual(r["permits"][0]["permit_number"], "6145915-CN")
+
+    def test_non_seattle_pin_does_not_call_seattle(self):
+        self._common()
+        loc = {"matched_address": "x", "score": 100, "match_type": "point", "partial_match": False,
+               "street_number_snapped": False, "county": "king", "parcel_id": "king:7222000353",
+               "pin": "7222000353", "geocoder_city": "Renton", "jurisdiction": "Renton",
+               "jurisdiction_basis": "city-limits", "unincorporated": False, "parcel_basis": "address-point"}
+        with patch.object(lookup, "assessor_lookup", return_value=([], [], "1817 MORRIS AVE S")), \
+             patch.object(lookup, "resolve_location", return_value=loc), \
+             patch.object(lookup, "search_seattle", return_value=([], [])) as ss:
+            r = lookup.lookup("7222000353")
+        ss.assert_not_called()
+        self.assertEqual(r["jurisdiction"]["city"], "Renton")
+        self.assertEqual(r["jurisdiction"]["basis"], "parcel-site-address")
+
+    def test_no_site_address_keeps_old_behaviour(self):
+        self._common()
+        with patch.object(lookup, "assessor_lookup", return_value=([], [], None)), \
+             patch.object(lookup, "search_seattle", return_value=([], [])) as ss:
+            r = lookup.lookup("7222000353")
+        ss.assert_not_called()
+        self.assertIsNone(r["jurisdiction"]["city"])

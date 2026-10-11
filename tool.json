@@ -169,7 +169,7 @@
       },
       "jurisdiction": {
         "type": "object",
-        "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon \u2014 authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), null (none). unincorporated=true means county permits only.",
+        "description": "Which authority the query was routed to and why. basis: city-limits (geocoded point inside the city's polygon \u2014 authoritative), geocoder-city (locator's city, outside King County's polygon layer), address-text (the mailing city in the query), parcel-site-address (a parcel query, resolved through the Assessor's site address), null (none). unincorporated=true means county permits only.",
         "properties": {
           "city": {
             "type": [
@@ -186,6 +186,7 @@
               "city-limits",
               "geocoder-city",
               "address-text",
+              "parcel-site-address",
               null
             ]
           },

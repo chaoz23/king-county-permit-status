@@ -1132,6 +1132,7 @@ def search_shoreline(input_type: str, value: str) -> tuple[list[dict], list[str]
 # One ~170 KB GET per permit, so only the newest SHORELINE_DETAIL_LIMIT are
 # enriched, concurrently. Older rows keep status "" / is_open null.
 SHORELINE_DETAIL_LIMIT = 20
+SHORELINE_DETAIL_BUDGET_S = 6.0     # whatever hasn't answered by then stays status ""
 _SHORELINE_DETAIL_FIELDS = {
     "status": "lblPermitStatus", "description": "lblPermitDesc",
     "issued_date": "lblPermitIssuedDate", "finaled_date": "lblPermitFinaledDate",
@@ -1163,14 +1164,20 @@ def _shoreline_enrich(permits: list[dict]) -> list[dict]:
     targets = [p for p in newest if p.get("permit_number")][:SHORELINE_DETAIL_LIMIT]
     if not targets:
         return permits
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        details = pool.map(lambda p: _shoreline_detail(p["permit_number"]), targets)
-        for permit, detail in zip(targets, details):
-            for field, value in detail.items():
-                if value and not permit.get(field):
-                    permit[field] = value
-            if detail:
-                permit["portal"] = f"{SHORELINE_SEARCH_URL}?activityNo={permit['permit_number']}"
+    # Time-boxed: ~170 KB per detail page, so a slow portal must not hold the
+    # whole lookup hostage (it made Shoreline the 16 s long pole). Details that
+    # miss the budget are simply left blank; the pool is not waited on.
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+    futures = {pool.submit(_shoreline_detail, p["permit_number"]): p for p in targets}
+    done, _ = concurrent.futures.wait(futures, timeout=SHORELINE_DETAIL_BUDGET_S)
+    for fut in done:
+        permit, detail = futures[fut], (fut.result() if not fut.exception() else {})
+        for field, value in detail.items():
+            if value and not permit.get(field):
+                permit[field] = value
+        if detail:
+            permit["portal"] = f"{SHORELINE_SEARCH_URL}?activityNo={permit['permit_number']}"
+    pool.shutdown(wait=False, cancel_futures=True)
     return permits
 
 
@@ -1185,7 +1192,8 @@ CIVIC_ACCESS_PORTALS = {
         "tenant": "RedmondWA Prod",
     },
 }
-CIVIC_ACCESS_MAX_PAGES = 8  # 25/page; safety cap for broad street matches
+CIVIC_ACCESS_PAGE_SIZE = 100   # the API accepts 100; one round trip for most parcels (was 25 → 2 pages, +3 s)
+CIVIC_ACCESS_MAX_PAGES = 5     # safety cap for broad street matches (500 rows)
 
 
 def _civicaccess_date(raw: str | None) -> str | None:
@@ -1272,7 +1280,7 @@ def search_energov_civicaccess(city: str, input_type: str,
         criteria.update({
             "Keyword": keyword, "ExactMatch": True,
             "SearchModule": 1, "FilterModule": 2,  # permit module only
-            "PageNumber": page, "PageSize": 25,
+            "PageNumber": page, "PageSize": CIVIC_ACCESS_PAGE_SIZE,
             "SortBy": None, "SortAscending": False,
         })
         return api("/search", criteria)["Result"]
@@ -1307,8 +1315,8 @@ def search_energov_civicaccess(city: str, input_type: str,
                            for r in (result.get("EntityResults") or []))
     if total_pages > CIVIC_ACCESS_MAX_PAGES:
         errors.append(
-            f"showing first {CIVIC_ACCESS_MAX_PAGES * 25} of "
-            f"{total_pages * 25}+ matches — narrow the search")
+            f"showing first {CIVIC_ACCESS_MAX_PAGES * CIVIC_ACCESS_PAGE_SIZE} of "
+            f"{total_pages * CIVIC_ACCESS_PAGE_SIZE}+ matches — narrow the search")
     return permits, errors
 
 
@@ -1991,55 +1999,59 @@ def lookup_all(raw_input: str) -> dict:
 
     else:  # address
         house, street = parse_address(value)
-        # Search King County + city jurisdiction
-        juris_to_search = ["20"]
-        if city and city in JURIS_BY_NAME:
-            juris_to_search.append(JURIS_BY_NAME[city])
-        elif not city and not unincorporated_kc:
-            # No city detected and no polygon answer — search all jurisdictions
-            juris_to_search = list(JURISDICTIONS.keys())
+        # Every address source is independent, so they run concurrently and are
+        # aggregated in a fixed order (same results, a fraction of the wall-clock;
+        # the sequential version made Shoreline 16 s and Redmond 13 s). Each thunk
+        # returns (searched_labels, permits, errors, portal_note_or_None).
 
-        for jid in juris_to_search:
-            # Parcel first when the address resolved to a PIN: MBP's house +
-            # street search trips its "too many results" cap on busy streets
-            # (Burien city hall: cap by street, 42 rows by parcel) and misses
-            # on number formatting (Federal Way: 0 by street, 120 by parcel).
-            # Fall back to house/street when MBP doesn't know the PIN.
-            results = None
-            if resolved_parcel:
-                results = search_mbp(jid, parcel=resolved_parcel)
-                if results == []:
-                    results = None
-            if results is None:
-                results = search_mbp(jid, house=house, street=street)
-            if results is None:
-                continue
-            jname = JURISDICTIONS.get(jid, jid)
-            searched_jurisdictions.append(jname)
-            if isinstance(results, list):
-                all_permits.extend(results)
-            elif isinstance(results, str) and "too many" in results.lower():
-                errors.append(f"{jname}: {results}")
+        def t_mbp():
+            s, p, er = [], [], []
+            juris_to_search = ["20"]
+            if city and city in JURIS_BY_NAME:
+                juris_to_search.append(JURIS_BY_NAME[city])
+            elif not city and not unincorporated_kc:
+                # No city detected and no polygon answer — search all jurisdictions
+                juris_to_search = list(JURISDICTIONS.keys())
+            for jid in juris_to_search:
+                # Parcel first when the address resolved to a PIN: MBP's house +
+                # street search trips its "too many results" cap on busy streets
+                # (Burien city hall: cap by street, 42 rows by parcel) and misses
+                # on number formatting (Federal Way: 0 by street, 120 by parcel).
+                # Fall back to house/street when MBP doesn't know the PIN.
+                results = None
+                if resolved_parcel:
+                    results = search_mbp(jid, parcel=resolved_parcel)
+                    if results == []:
+                        results = None
+                if results is None:
+                    results = search_mbp(jid, house=house, street=street)
+                if results is None:
+                    continue
+                jname = JURISDICTIONS.get(jid, jid)
+                s.append(jname)
+                if isinstance(results, list):
+                    p.extend(results)
+                elif isinstance(results, str) and "too many" in results.lower():
+                    er.append(f"{jname}: {results}")
+            return s, p, er, None
 
-        # EnerGov cities: resolve parcel, then search by parcel
+        thunks = [t_mbp]
+
+        # EnerGov cities (Renton): search by parcel.
         if city and city in ENERGOV_PORTALS:
-            parcel = resolved_parcel or _geocode_parcel(value)
-            if parcel:
-                resolved_parcel = parcel
-                eg = search_energov(city, parcel, exact=False)
-                all_permits.extend(eg)
-                searched_jurisdictions.append(f"{city.title()} (EnerGov, parcel {parcel})")
-            else:
-                searched_jurisdictions.append(f"{city.title()} (EnerGov — parcel lookup failed)")
-                separate_portal_note = {
+            def t_energov_city():
+                parcel = resolved_parcel or _geocode_parcel(value)
+                if parcel:
+                    eg = search_energov(city, parcel, exact=False)
+                    return [f"{city.title()} (EnerGov, parcel {parcel})"], eg, [], None
+                return ([f"{city.title()} (EnerGov — parcel lookup failed)"], [], [], {
                     "city": city.title(),
                     "portal": ENERGOV_PORTALS[city]["url"],
-                    "note": (
-                        f"Could not resolve this address to a parcel for the "
-                        f"{city.title()} search — check the city portal directly."
-                    ),
+                    "note": (f"Could not resolve this address to a parcel for the "
+                             f"{city.title()} search — check the city portal directly."),
                     "reason": "parcel_resolution_failed",
-                }
+                })
+            thunks.append(t_energov_city)
         elif (city and city in SEPARATE_PORTALS
               and city not in ("seattle", "shoreline")
               and city not in CIVIC_ACCESS_PORTALS
@@ -2053,96 +2065,94 @@ def lookup_all(raw_input: str) -> dict:
                 "reason": "no_feed",
             }
 
-    # Bellevue's former EnerGov hostname is retired. Its official Open Data
-    # layer is current, daily refreshed. (Permit/parcel handled above.)
-    if input_type == "address" and city in (None, "bellevue"):
-        bellevue = search_bellevue(input_type, value)
-        searched_jurisdictions.append("Bellevue Open Data")
-        if isinstance(bellevue, list):
-            all_permits.extend(bellevue)
-        else:
-            errors.append(f"Bellevue Open Data: {bellevue}")
+        # Bellevue's former EnerGov hostname is retired. Its official Open Data
+        # layer is current, daily refreshed.
+        if city in (None, "bellevue"):
+            def t_bellevue_addr():
+                b = search_bellevue(input_type, value)
+                if isinstance(b, list):
+                    return ["Bellevue Open Data"], b, [], None
+                return ["Bellevue Open Data"], [], [f"Bellevue Open Data: {b}"], None
+            thunks.append(t_bellevue_addr)
 
-    # Seattle's official Open Data. (Permit searches handled above.)
-    if input_type == "address" and city == "seattle":
-        seattle_permits, seattle_errors = search_seattle(input_type, value)
-        all_permits.extend(seattle_permits)
-        searched_jurisdictions.append("Seattle Open Data")
-        errors.extend(f"Seattle Open Data — {error}" for error in seattle_errors)
-        if city == "seattle" and seattle_errors:
-            separate_portal_note = {
-                "city": "Seattle",
-                "portal": SEPARATE_PORTALS["seattle"],
-                "note": (
-                    "Some Seattle Open Data searches were incomplete — "
-                    "check the Seattle Services Portal directly."
-                ),
-                "electrical": True,
-                "reason": "source_incomplete",
-            }
+        if city == "seattle":
+            def t_seattle_addr():
+                p, er = search_seattle(input_type, value)
+                note = None
+                if er:
+                    note = {"city": "Seattle", "portal": SEPARATE_PORTALS["seattle"],
+                            "note": ("Some Seattle Open Data searches were incomplete — "
+                                     "check the Seattle Services Portal directly."),
+                            "electrical": True, "reason": "source_incomplete"}
+                return ["Seattle Open Data"], p, [f"Seattle Open Data — {e}" for e in er], note
+            thunks.append(t_seattle_addr)
 
-    # Shoreline eTRAKiT (CentralSquare) — building, mechanical/plumbing, and
-    # land-use permits. Queried for permit/parcel searches (no city context) and
-    # for Shoreline addresses. Electrical is issued by WA L&I (Shoreline does not
-    # run its own program), so it is covered by the L&I layer below.
-    if input_type == "address" and city == "shoreline":
-        shoreline_permits, shoreline_errors = search_shoreline(input_type, value)
-        all_permits.extend(shoreline_permits)
-        searched_jurisdictions.append("Shoreline (eTRAKiT)")
-        errors.extend(f"Shoreline eTRAKiT: {error}" for error in shoreline_errors)
+        # Shoreline eTRAKiT — building, mechanical/plumbing, land use (electrical
+        # is L&I's).
+        if city == "shoreline":
+            def t_shoreline_addr():
+                p, er = search_shoreline(input_type, value)
+                return ["Shoreline (eTRAKiT)"], p, [f"Shoreline eTRAKiT: {e}" for e in er], None
+            thunks.append(t_shoreline_addr)
 
-    # Tyler EnerGov Civic Access portals (Redmond, ...). Full permit history
-    # including electrical. Queried for permit/parcel searches (no city context)
-    # and for a matching city address.
-    for ca_city in CIVIC_ACCESS_PORTALS:
-        if input_type == "address" and city == ca_city:
-            ca_permits, ca_errors = search_energov_civicaccess(
-                ca_city, input_type, value)
-            all_permits.extend(ca_permits)
-            searched_jurisdictions.append(f"{ca_city.title()} (EnerGov Civic Access)")
-            errors.extend(f"{ca_city.title()} EnerGov: {error}" for error in ca_errors)
+        # Tyler EnerGov Civic Access (Redmond): full history incl. electrical.
+        if city in CIVIC_ACCESS_PORTALS:
+            def t_civic_addr():
+                p, er = search_energov_civicaccess(city, input_type, value)
+                return ([f"{city.title()} (EnerGov Civic Access)"], p,
+                        [f"{city.title()} EnerGov: {e}" for e in er], None)
+            thunks.append(t_civic_addr)
 
-    # Accela Citizen Access (Woodinville; Black Diamond via King County's agency).
-    # A matching city address searches its agency; permit/parcel searches (no
-    # city context) query each unique Accela agency once.
-    if input_type == "address" and city in ACCELA_PORTALS:
-        ac_permits, ac_errors = search_accela(
-            ACCELA_PORTALS[city], input_type, value, city.title())
-        all_permits.extend(ac_permits)
-        searched_jurisdictions.append(f"{city.title()} (Accela)")
-        errors.extend(f"{city.title()} Accela: {error}" for error in ac_errors)
-    elif input_type == "address" and (unincorporated_kc or not city):
-        # Unincorporated King County (polygon-confirmed), or no city at all
-        # (already fanning out everywhere): KC's own Accela agency on top of
-        # MBP-KC — it holds the older and non-building county records.
-        ac_permits, ac_errors = search_accela(
-            ACCELA_UNINCORPORATED_AGENCY, input_type, value, "King County")
-        all_permits.extend(ac_permits)
-        searched_jurisdictions.append("King County (Accela)")
-        errors.extend(f"King County Accela: {error}" for error in ac_errors)
+        # Accela: a city agency (Woodinville), or KC's own agency for
+        # unincorporated / city-less addresses (older and non-building county
+        # records MBP-KC lacks).
+        if city in ACCELA_PORTALS:
+            def t_accela_addr():
+                p, er = search_accela(ACCELA_PORTALS[city], input_type, value, city.title())
+                return [f"{city.title()} (Accela)"], p, [f"{city.title()} Accela: {e}" for e in er], None
+            thunks.append(t_accela_addr)
+        elif unincorporated_kc or not city:
+            def t_accela_kc():
+                p, er = search_accela(ACCELA_UNINCORPORATED_AGENCY, input_type, value, "King County")
+                return ["King County (Accela)"], p, [f"King County Accela: {e}" for e in er], None
+            thunks.append(t_accela_kc)
 
-    # SmartGov (Paladin/GXA) — Normandy Park, Carnation.
-    if input_type == "address" and city in SMARTGOV_PORTALS:
-        sg_permits, sg_errors = search_smartgov(city, input_type, value)
-        all_permits.extend(sg_permits)
-        searched_jurisdictions.append(f"{city.title()} (SmartGov)")
-        errors.extend(f"{city.title()} SmartGov: {error}" for error in sg_errors)
+        if city in SMARTGOV_PORTALS:
+            def t_smartgov_addr():
+                p, er = search_smartgov(city, input_type, value)
+                return [f"{city.title()} (SmartGov)"], p, [f"{city.title()} SmartGov: {e}" for e in er], None
+            thunks.append(t_smartgov_addr)
 
-    # LAMA — SeaTac. Full history including SeaTac's self-run electrical.
-    if input_type == "address" and city in LAMA_PORTALS:
-        lm_permits, lm_errors = search_lama(city, input_type, value)
-        all_permits.extend(lm_permits)
-        searched_jurisdictions.append(f"{display_city(city)} (LAMA)")
-        errors.extend(f"{display_city(city)} LAMA: {error}" for error in lm_errors)
+        if city in LAMA_PORTALS:
+            def t_lama_addr():
+                p, er = search_lama(city, input_type, value)
+                return ([f"{display_city(city)} (LAMA)"], p,
+                        [f"{display_city(city)} LAMA: {e}" for e in er], None)
+            thunks.append(t_lama_addr)
 
-    # King County Assessor index — any address that resolved to a KC parcel.
-    # The only source for the 19 cities without a public portal; for live
-    # cities it is a cheap cross-check that dedups against the live records.
-    if input_type == "address" and resolved_parcel:
-        as_permits, as_errors = search_assessor(resolved_parcel)
-        all_permits.extend(as_permits)
-        searched_jurisdictions.append(ASSESSOR_LABEL)
-        errors.extend(f"Assessor: {error}" for error in as_errors)
+        # King County Assessor index — any address that resolved to a KC parcel:
+        # the only source for the 19 cities without a public portal, a cheap
+        # cross-check (deduped) for live cities.
+        if resolved_parcel:
+            def t_assessor_addr():
+                p, er = search_assessor(resolved_parcel)
+                return [ASSESSOR_LABEL], p, [f"Assessor: {e}" for e in er], None
+            thunks.append(t_assessor_addr)
+
+        def _safe_addr(fn):
+            try:
+                return fn()
+            except Exception as exc:  # one source failing must not sink the rest
+                return [], [], [str(exc)], None
+
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(10, len(thunks))) as pool:
+            for s_, p_, er_, note_ in pool.map(_safe_addr, thunks):
+                searched_jurisdictions.extend(s_)
+                all_permits.extend(p_)
+                errors.extend(er_)
+                if note_ and not separate_portal_note:
+                    separate_portal_note = note_
 
     # Layer 3: WA State L&I electrical permits (address searches only)
     # Skip L&I if the city handles its own electrical

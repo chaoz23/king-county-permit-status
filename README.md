@@ -107,7 +107,7 @@ Per permit: `permit_number`, `type`, `status`, `is_open` (heuristic, census-test
 |---|---|
 | [MyBuildingPermit.com](https://permitsearch.mybuildingpermit.com/) | Auburn, Bellevue, Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, **King County** (unincorporated), Kirkland, Mercer Island, Mill Creek, Newcastle, Sammamish, Snoqualmie |
 | Bellevue Open Data (live ArcGIS API) | Daily Bellevue permit snapshot (1998+) for address, parcel, and permit-number searches |
-| Seattle Open Data (live Socrata APIs) | Building, electrical, trade, and land-use permits for Seattle address and permit-number searches |
+| Seattle Open Data (live Socrata APIs) | Building, electrical, trade, and land-use permits for Seattle address and permit-number searches; parcel-number queries reach it through the Assessor's site address (the datasets have no parcel column) |
 | Renton EnerGov (live API) | All Renton permit types including electrical |
 | Redmond EnerGov Civic Access (live API) | All Redmond permit types including electrical, for address, parcel, and permit-number searches |
 | Accela Citizen Access (live) | Woodinville, and King County's own agency for unincorporated addresses (older history, enforcement and electrical records that MyBuildingPermit lacks), for address, parcel, and permit-number searches |

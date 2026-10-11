@@ -53,6 +53,7 @@ CASES = [
     # --- REAL parcels / permit numbers ---
     ("real/parcel-Renton",  "7222000353",  found_in("Renton")),
     ("real/parcel-Redmond", "0225059115",  action_is("found")),
+    ("real/parcel-Seattle", "1985200495",  found_in("Seattle")),      # via Assessor site address (#36)
     ("real/permit-Renton",  "B25000947",   found_in("Renton")),
     ("real/permit-Woodv",   "ROW26100",    action_is("found", "none")),  # Accela permit# may redirect
     # --- FAKE addresses (robustness: none, no crash) ---

@@ -1861,6 +1861,11 @@ def enrich_permit(permit: dict) -> dict:
     """Add the provenance/convenience fields agents act on (additive)."""
     permit.setdefault("portal", None)      # MBP/L&I records carry no per-record URL
     permit["is_open"] = is_open_status(permit.get("status"), permit.get("finaled_date"))
+    # How much to trust is_open (#79): a finaled date is a fact; a status word
+    # is a census-tested heuristic; no status means we simply don't know.
+    permit["is_open_basis"] = ("finaled_date" if permit.get("finaled_date")
+                               else "status-vocabulary" if (permit.get("status") or "").strip()
+                               else None)
     permit["record_url"] = record_url(permit)
     return permit
 
@@ -2419,6 +2424,8 @@ def shape_result(result: dict, limit: int | None = DEFAULT_LIMIT, since: str | N
         "open": sum(1 for p in permits if p.get("is_open") is True),
         "closed": sum(1 for p in permits if p.get("is_open") is False),
         "status_unknown": sum(1 for p in permits if p.get("is_open") is None),
+        "open_basis_counts": {b: sum(1 for p in permits if p.get("is_open_basis") == b)
+                              for b in ("finaled_date", "status-vocabulary")},
         "by_type": tally(lambda p: p.get("type")),
         "by_status": tally(lambda p: p.get("status") or "(none)"),
         "by_year": dict(sorted(((y, years.count(y)) for y in set(years)), reverse=True)),
@@ -2499,7 +2506,7 @@ TOOL_SCHEMA = {
             "permit_count": {"type": "integer", "description": "Unique permits found before any since/types filter (= summary.total)"},
             "summary": {
                 "type": "object",
-                "description": "Computed over every permit matching since/types (not just the returned rows): total, matched, returned, truncated, open, closed, status_unknown, by_type, by_status, by_year, years [oldest, newest], latest {permit_number,type,status,date,jurisdiction}. Answer from this; drill into permits only when you need rows.",
+                "description": "Computed over every permit matching since/types (not just the returned rows): total, matched, returned, truncated, open, closed, status_unknown, open_basis_counts {finaled_date, status-vocabulary} (how many open/closed verdicts rest on a fact vs the status-word heuristic), by_type, by_status, by_year, years [oldest, newest], latest {permit_number,type,status,date,jurisdiction}. Answer from this; drill into permits only when you need rows.",
             },
             "filters": {"type": "object", "description": "The limit/since/types that produced this response"},
             "permits": {
@@ -2520,7 +2527,8 @@ TOOL_SCHEMA = {
                         "expires_date": {"type": ["string", "null"], "description": "YYYY-MM-DD"},
                         "portal": {"type": ["string", "null"], "description": "Source permit or portal URL when available"},
                         "record_url": {"type": ["string", "null"], "description": "URL of this specific permit record when the source exposes one; null when portal is only a search page"},
-                        "is_open": {"type": ["boolean", "null"], "description": "Normalized across vendor status vocabularies: false when finaled/closed/expired/withdrawn/etc., null when the source exposes no status"},
+                        "is_open": {"type": ["boolean", "null"], "description": "Heuristic, census-tested weekly: false when finaled/closed/expired/withdrawn/etc. (or a finaled_date exists), true for issued/pending/review words, null when the source exposes no status. Check is_open_basis before relying on it."},
+                        "is_open_basis": {"type": ["string", "null"], "enum": ["finaled_date", "status-vocabulary", None], "description": "finaled_date = certain (the record carries a final date); status-vocabulary = regex over the vendor's status word (heuristic); null = no status available"},
                     },
                 },
             },

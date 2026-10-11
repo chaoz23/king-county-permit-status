@@ -99,7 +99,7 @@ mailing city is only used when geocoding fails (`jurisdiction.basis` says which)
 | `address_resolution` | How well the geocoder matched an address: `matched_address`, `score`, `match_type` (`point` = exact address point; `interpolated` = number placed along the street; `street`), `partial_match`, `street_number_snapped`, `parcel_basis` (`address-point`, `parcel-polygon`, or `nearby-parcel` when the PIN came from the parcel layer under/near an interpolated point — then `candidate_parcels` lists the alternatives) |
 | `cite_as` | One-line attribution string for generated text |
 
-Per permit: `permit_number`, `type`, `status`, `is_open` (normalized across vendor status vocabularies; `null` when the source exposes no status), `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`, `record_url` (the specific record's URL when the source exposes one).
+Per permit: `permit_number`, `type`, `status`, `is_open` (heuristic, census-tested weekly; `null` when the source exposes no status) with `is_open_basis` (`finaled_date` = certain, `status-vocabulary` = regex over the vendor's status word, `null` = unknown), `description`, `address`, `jurisdiction`, `applied_date`, `issued_date`, `finaled_date`, `expires_date`, `portal`, `record_url` (the specific record's URL when the source exposes one).
 
 ## Multi-jurisdiction coverage
 

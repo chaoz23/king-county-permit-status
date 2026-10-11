@@ -2255,3 +2255,27 @@ class MbpCapSplitTests(unittest.TestCase):
         self.assertGreater(r["permit_count"], 10)              # one synthetic row per window
         self.assertEqual(r["trust_level"], "live")             # every window answered
         self.assertNotIn("errors", r)
+
+
+class IsOpenBasisTests(unittest.TestCase):
+    """#79 — is_open is labelled as a heuristic and its basis is explicit."""
+
+    def test_basis_per_permit(self):
+        self.assertEqual(lookup.enrich_permit({"status": "Issued"})["is_open_basis"], "status-vocabulary")
+        p = lookup.enrich_permit({"status": "Issued", "finaled_date": "2024-01-01"})
+        self.assertEqual((p["is_open"], p["is_open_basis"]), (False, "finaled_date"))
+        p = lookup.enrich_permit({"status": ""})
+        self.assertEqual((p["is_open"], p["is_open_basis"]), (None, None))
+
+    def test_summary_counts_bases(self):
+        permits = [lookup.enrich_permit({"status": "Issued", "applied_date": "2024-01-01"}),
+                   lookup.enrich_permit({"status": "x", "finaled_date": "2024-02-01", "applied_date": "2024-01-02"}),
+                   lookup.enrich_permit({"status": "", "applied_date": "2024-01-03"})]
+        s = lookup.shape_result({"permits": permits})["summary"]
+        self.assertEqual(s["open_basis_counts"], {"finaled_date": 1, "status-vocabulary": 1})
+        self.assertEqual(s["status_unknown"], 1)
+
+    def test_schema_labels_heuristic(self):
+        props = lookup.TOOL_SCHEMA["output_schema"]["properties"]["permits"]["items"]["properties"]
+        self.assertIn("Heuristic", props["is_open"]["description"])
+        self.assertIn("is_open_basis", props)

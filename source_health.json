@@ -225,7 +225,7 @@
    ]
   }
  },
- "checked_at": "2026-10-09T18:39:34+00:00",
+ "checked_at": "2026-10-11T16:32:16+00:00",
  "summary": {
   "ok": 27
  },
@@ -235,7 +235,7 @@
    "outcome": "ok",
    "records": 24,
    "detail": "24 records",
-   "elapsed_ms": 2535,
+   "elapsed_ms": 1834,
    "statuses": {
     "Pass": {
      "n": 9,
@@ -272,7 +272,7 @@
    "outcome": "ok",
    "records": 131,
    "detail": "131 records",
-   "elapsed_ms": 2492,
+   "elapsed_ms": 1723,
    "statuses": {
     "Completed": {
      "n": 105,
@@ -309,7 +309,7 @@
    "outcome": "ok",
    "records": 356,
    "detail": "356 records",
-   "elapsed_ms": 309,
+   "elapsed_ms": 94,
    "statuses": {
     "Closed": {
      "n": 234,
@@ -358,7 +358,7 @@
    "outcome": "ok",
    "records": 53,
    "detail": "53 records",
-   "elapsed_ms": 3074,
+   "elapsed_ms": 2227,
    "statuses": {
     "ARCHIVED": {
      "n": 8,
@@ -387,7 +387,7 @@
    "outcome": "ok",
    "records": 32,
    "detail": "32 records",
-   "elapsed_ms": 10286,
+   "elapsed_ms": 8325,
    "statuses": {
     "Finaled": {
      "n": 24,
@@ -412,7 +412,7 @@
    "outcome": "ok",
    "records": 9,
    "detail": "9 records",
-   "elapsed_ms": 839,
+   "elapsed_ms": 600,
    "statuses": {
     "Finaled": {
      "n": 4,
@@ -433,7 +433,7 @@
    "outcome": "ok",
    "records": 14,
    "detail": "14 records",
-   "elapsed_ms": 947,
+   "elapsed_ms": 757,
    "statuses": {
     "Closed": {
      "n": 6,
@@ -458,7 +458,7 @@
    "outcome": "ok",
    "records": 21,
    "detail": "21 records",
-   "elapsed_ms": 1023,
+   "elapsed_ms": 1289,
    "statuses": {
     "Closed": {
      "n": 13,
@@ -491,7 +491,7 @@
    "outcome": "ok",
    "records": 2,
    "detail": "2 records",
-   "elapsed_ms": 462,
+   "elapsed_ms": 757,
    "statuses": {
     "Closed": {
      "n": 1,
@@ -508,7 +508,7 @@
    "outcome": "ok",
    "records": 178,
    "detail": "178 records; non-fatal: showing first 200 of 343 matches — narrow the search",
-   "elapsed_ms": 4718,
+   "elapsed_ms": 5036,
    "statuses": {
     "Permit Finalized": {
      "n": 138,
@@ -537,7 +537,7 @@
    "outcome": "ok",
    "records": 7,
    "detail": "7 records",
-   "elapsed_ms": 1242,
+   "elapsed_ms": 1423,
    "statuses": {}
   },
   "lni": {
@@ -545,7 +545,7 @@
    "outcome": "ok",
    "records": 12,
    "detail": "12 records",
-   "elapsed_ms": 3000,
+   "elapsed_ms": 4374,
    "statuses": {
     "Inactive": {
      "n": 12,
@@ -558,7 +558,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 602,
+   "elapsed_ms": 779,
    "statuses": {}
   },
   "mbp:bellevue": {
@@ -566,7 +566,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 2701,
+   "elapsed_ms": 782,
    "statuses": {}
   },
   "mbp:bothell": {
@@ -574,7 +574,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 512,
+   "elapsed_ms": 501,
    "statuses": {}
   },
   "mbp:burien": {
@@ -582,7 +582,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 811,
+   "elapsed_ms": 640,
    "statuses": {}
   },
   "mbp:edmonds": {
@@ -590,7 +590,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 575,
+   "elapsed_ms": 713,
    "statuses": {}
   },
   "mbp:federal way": {
@@ -598,7 +598,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 596,
+   "elapsed_ms": 771,
    "statuses": {}
   },
   "mbp:issaquah": {
@@ -606,7 +606,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 783,
+   "elapsed_ms": 582,
    "statuses": {}
   },
   "mbp:kenmore": {
@@ -614,7 +614,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 546,
+   "elapsed_ms": 408,
    "statuses": {}
   },
   "mbp:king county": {
@@ -622,7 +622,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 482,
+   "elapsed_ms": 478,
    "statuses": {}
   },
   "mbp:kirkland": {
@@ -630,7 +630,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 672,
+   "elapsed_ms": 522,
    "statuses": {}
   },
   "mbp:mercer island": {
@@ -638,7 +638,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 538,
+   "elapsed_ms": 411,
    "statuses": {}
   },
   "mbp:mill creek": {
@@ -646,7 +646,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 607,
+   "elapsed_ms": 519,
    "statuses": {}
   },
   "mbp:newcastle": {
@@ -654,7 +654,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 554,
+   "elapsed_ms": 471,
    "statuses": {}
   },
   "mbp:sammamish": {
@@ -662,7 +662,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 928,
+   "elapsed_ms": 762,
    "statuses": {}
   },
   "mbp:snoqualmie": {
@@ -670,8 +670,39 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 906,
+   "elapsed_ms": 662,
    "statuses": {}
   }
+ },
+ "qc": {
+  "passed": 27,
+  "failed": 0,
+  "errored": 0,
+  "slow": [
+   [
+    "real/Seattle",
+    10.8
+   ],
+   [
+    "real/Shoreline",
+    8.5
+   ],
+   [
+    "edge/gibberish",
+    8.4
+   ]
+  ],
+  "failing": []
+ },
+ "scorecard_qc": {
+  "tally": {
+   "PASS": 39,
+   "WARN": 1,
+   "FAIL": 0
+  },
+  "failing": [],
+  "warning": [
+   "Milton"
+  ]
  }
 }

@@ -142,6 +142,8 @@ def build_next_step(city: str, reason: str, query: str, input_type: str,
 
     reason: no_feed | electrical_only | parcel_resolution_failed | source_incomplete
             | source_blocked (the city's live system returned 403 to this client)
+            | source_capped (the source refused to list everything — try the portal
+              with narrower criteria)
     """
     key = (city or "").lower()
     manual = MANUAL_PORTALS.get(key, {})
@@ -224,7 +226,8 @@ def get_session():
 
 def search_permits(opener, token, juris_id, search_by="Location",
                    street="", house="", parcel="", permit_number="",
-                   from_date="", to_date="", date_basis="Applied") -> list[dict] | str:
+                   from_date="", to_date="", date_basis="Applied",
+                   contractor="", license="", applicant="") -> list[dict] | str:
     """Search permits in a single jurisdiction. Returns list or error string.
 
     from_date/to_date (MM/DD/YYYY) narrow by date_basis (Applied | Issued |
@@ -238,9 +241,9 @@ def search_permits(opener, token, juris_id, search_by="Location",
         "HouseBldgNum": house,
         "StreetName": street,
         "ParcelNum": parcel,
-        "ContractorCompany": "",
-        "ContractorLicNum": "",
-        "ApplicantLastName": "",
+        "ContractorCompany": contractor,
+        "ContractorLicNum": license,
+        "ApplicantLastName": applicant,
         "FromDate": from_date,
         "ToDate": to_date,
     }
@@ -2421,6 +2424,76 @@ def lookup_all(raw_input: str) -> dict:
     return result
 
 
+MBP_CONTRACTOR_PORTAL = "https://permitsearch.mybuildingpermit.com/"
+
+
+def lookup_contractor(name: str | None = None, license: str | None = None,
+                      limit: int | None = DEFAULT_LIMIT, since: str | None = None,
+                      types: list[str] | None = None) -> dict:
+    """What has this contractor pulled? (#82) MyBuildingPermit's People search
+    (ContractorCompany / ContractorLicNum) across every MBP jurisdiction,
+    concurrently; capped jurisdictions are re-run in applied-date windows.
+    Only MBP cities are covered — the other portals' contractor searches are
+    not implemented — and the response says so."""
+    name = (name or "").strip()
+    license = (license or "").strip()
+    label = f"contractor: {name}" if name else f"contractor license: {license}"
+    base = {"input": label, "searched": [], "permits": []}
+    if not name and not license:
+        return shape_result({**base, "action": "reject", "permit_count": 0,
+                             "message": "Give a contractor company name or L&I license number."},
+                            limit, since, types)
+    try:
+        opener, token = get_session()
+    except Exception as e:
+        return shape_result({**base, "action": "refine", "permit_count": 0,
+                             "message": f"Could not connect to MyBuildingPermit: {e}",
+                             "errors": [str(e)], "trust_level": "fallback"}, limit, since, types)
+    criteria = {"search_by": "People", "contractor": name, "license": license}
+
+    def one(jid):
+        jname = JURISDICTIONS[jid]
+        r = search_permits(opener, token, jid, **criteria)
+        if is_mbp_capped(r):
+            rows, still = search_permits_split(opener, token, jid, **criteria)
+            return ([f"{jname} (MyBuildingPermit, split by year)"], rows,
+                    [f"{jname}: MyBuildingPermit capped even per year for {', '.join(still)}"] if still else [])
+        if isinstance(r, list):
+            return [jname], r, []
+        return [jname], [], [f"{jname}: {r}"]
+
+    searched, permits, errors = [], [], []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        for s_, p_, er_ in pool.map(one, list(JURISDICTIONS)):
+            searched.extend(s_); permits.extend(p_); errors.extend(er_)
+    seen, unique = set(), []
+    for raw in permits:
+        p = format_permit(raw)
+        k = dedup_key(p)
+        if k not in seen:
+            seen.add(k); unique.append(enrich_permit(p))
+    unique.sort(key=lambda p: p["applied_date"] or p.get("issued_date") or "", reverse=True)
+    result = {
+        **base, "searched": searched, "permits": unique, "permit_count": len(unique),
+        "action": "found" if unique else ("refine" if errors else "none"),
+        "message": (f"Found {len(unique)} permit(s) for {label} across MyBuildingPermit jurisdictions."
+                    if unique else f"No permits found for {label} in MyBuildingPermit jurisdictions."),
+        "coverage_note": ("Contractor search covers the MyBuildingPermit cities only (" +
+                          ", ".join(sorted(JURISDICTIONS.values())) + "). Seattle, Renton, Redmond, "
+                          "Shoreline, SeaTac, Woodinville, Normandy Park and Carnation are not searched "
+                          "by contractor. For the contractor's license, bond and insurance use "
+                          "wa-contractor-license."),
+    }
+    if errors:
+        result["errors"] = errors
+        result["next_step"] = build_next_step("King County", "source_capped", label, "contractor",
+                                              portal=MBP_CONTRACTOR_PORTAL)
+    result["trust_level"] = "partial" if errors else "live"
+    result["fetched_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    result["cite_as"] = f"{CITE_AS}, queried {result['fetched_at'][:10]} via MyBuildingPermit (contractor search)"
+    return shape_result(result, limit, since, types)
+
+
 def _permit_date(p: dict) -> str:
     return p.get("applied_date") or p.get("issued_date") or ""
 
@@ -2520,8 +2593,17 @@ TOOL_SCHEMA = {
                 "type": "array", "items": {"type": "string"},
                 "description": "Case-insensitive substrings matched against each permit's type, e.g. ['electrical', 'mechanical'].",
             },
+            "contractor": {
+                "type": "string",
+                "description": "Contractor company name (substring) — returns what they have pulled across the MyBuildingPermit cities. Use instead of query.",
+            },
+            "license": {
+                "type": "string",
+                "description": "WA L&I contractor license number — same search by license. Use instead of query.",
+            },
         },
-        "required": ["query"],
+        "required": [],
+        "description": "Give `query` (address / parcel / permit number) OR `contractor` / `license` for a contractor pull-history search; never both.",
     },
     "output_schema": {
         "type": "object",
@@ -2542,6 +2624,7 @@ TOOL_SCHEMA = {
                 "description": "Computed over every permit matching since/types (not just the returned rows): total, matched, returned, truncated, open, closed, status_unknown, open_basis_counts {finaled_date, status-vocabulary} (how many open/closed verdicts rest on a fact vs the status-word heuristic), by_type, by_status, by_year, years [oldest, newest], latest {permit_number,type,status,date,jurisdiction}. Answer from this; drill into permits only when you need rows.",
             },
             "filters": {"type": "object", "description": "The limit/since/types that produced this response"},
+            "coverage_note": {"type": "string", "description": "Contractor searches only: which cities were (and were not) searched"},
             "permits": {
                 "type": "array",
                 "description": "Up to `limit` permit records, newest first (applied_date, else issued_date).",
@@ -2612,13 +2695,13 @@ TOOL_SCHEMA = {
                 "description": "Structured twin of separate_portal: the exact follow-up an agent can take. kind=manual_portal_search; reason in no_feed|electrical_only|parcel_resolution_failed|source_incomplete; portal_url (the portal's search page when known); vendor; search_by (inputs that page accepts, empty when login-gated); query/query_type to re-use; covers_electrical; hint.",
                 "properties": {
                     "kind": {"type": "string", "enum": ["manual_portal_search"]},
-                    "reason": {"type": "string", "enum": ["no_feed", "electrical_only", "parcel_resolution_failed", "source_incomplete", "source_blocked"]},
+                    "reason": {"type": "string", "enum": ["no_feed", "electrical_only", "parcel_resolution_failed", "source_incomplete", "source_blocked", "source_capped"]},
                     "city": {"type": ["string", "null"]},
                     "portal_url": {"type": ["string", "null"]},
                     "vendor": {"type": ["string", "null"]},
                     "search_by": {"type": "array", "items": {"type": "string", "enum": ["address", "permit", "parcel"]}},
                     "query": {"type": "string"},
-                    "query_type": {"type": "string", "enum": ["address", "parcel", "permit"]},
+                    "query_type": {"type": "string", "enum": ["address", "parcel", "permit", "contractor"]},
                     "covers_electrical": {"type": "boolean"},
                     "hint": {"type": "string"},
                 },
@@ -2651,6 +2734,8 @@ def print_usage():
     print('  lookup.py --pipe "27927 E Main St"        # agent mode')
     print('  lookup.py --limit 10 --since 2020-01-01 --type electrical "<addr>"  # shape the result')
     print('  lookup.py --all "<addr>"                  # every permit (default: 50 newest + summary)')
+    print('  lookup.py --contractor "Brambila"         # what a contractor pulled (MyBuildingPermit cities)')
+    print('  lookup.py --license BRAMBSL123AA          # same, by L&I license number')
     print('  lookup.py --schema                        # print tool definition')
 
 
@@ -2664,6 +2749,7 @@ def main():
     pipe_mode = "--pipe" in args
     schema_mode = "--schema" in args
     limit, since, types = DEFAULT_LIMIT, None, []
+    contractor, license = None, None
     rest = []
     i = 0
     while i < len(args):
@@ -2672,12 +2758,16 @@ def main():
             pass
         elif a == "--all":
             limit = None
-        elif a in ("--limit", "--since", "--type") and i + 1 < len(args):
+        elif a in ("--limit", "--since", "--type", "--contractor", "--license") and i + 1 < len(args):
             i += 1
             if a == "--limit":
                 limit = int(args[i])
             elif a == "--since":
                 since = args[i]
+            elif a == "--contractor":
+                contractor = args[i]
+            elif a == "--license":
+                license = args[i]
             else:
                 types.append(args[i])
         else:
@@ -2689,12 +2779,14 @@ def main():
         print(json.dumps(TOOL_SCHEMA, indent=2))
         sys.exit(0)
 
-    if not args:
-        print_usage()
-        sys.exit(2)
-
-    query = " ".join(args)
-    result = lookup(query, limit=limit, since=since, types=types or None)
+    if contractor or license:
+        result = lookup_contractor(contractor, license, limit=limit, since=since, types=types or None)
+    else:
+        if not args:
+            print_usage()
+            sys.exit(2)
+        query = " ".join(args)
+        result = lookup(query, limit=limit, since=since, types=types or None)
 
     if pipe_mode:
         print(json.dumps(result, separators=(",", ":")))

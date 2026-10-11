@@ -2348,3 +2348,60 @@ class SeattleParcelTests(unittest.TestCase):
             r = lookup.lookup("7222000353")
         ss.assert_not_called()
         self.assertIsNone(r["jurisdiction"]["city"])
+
+
+class ContractorSearchTests(unittest.TestCase):
+    """#82 — what has this contractor pulled (MBP People search)."""
+
+    def _row(self, n, juris):
+        return {"PermitNumber": n, "PermitType": "Building", "PermitStatus": "Finaled",
+                "PermitDescription": "Re-roof", "Address": "1 Main St", "Jurisdiction": juris,
+                "AppliedDate": "/Date(1700000000000)/", "IssuedDate": None, "FinaledDate": None,
+                "ApplicationExpDate": None}
+
+    def test_fans_out_people_search_across_mbp_and_dedups(self):
+        calls = []
+        def mbp(_o, _t, jid, **kw):
+            calls.append((jid, kw))
+            if jid == lookup.JURIS_BY_NAME["bellevue"]:
+                return [self._row("15 102884 BT", "Bellevue"), self._row("15 102884 BT", "Bellevue")]
+            if jid == lookup.JURIS_BY_NAME["kirkland"]:
+                return "Search returned too many results. Please refine your search criteria."
+            return []
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", side_effect=mbp), \
+             patch.object(lookup, "search_permits_split", return_value=([self._row("K-1", "Kirkland")], ["2025"])) as split:
+            r = lookup.lookup_contractor("Brambila")
+        self.assertEqual(len(calls), len(lookup.JURISDICTIONS))
+        self.assertTrue(all(kw["search_by"] == "People" and kw["contractor"] == "Brambila" for _, kw in calls))
+        split.assert_called_once()
+        self.assertEqual(sorted(p["permit_number"] for p in r["permits"]), ["15 102884 BT", "K-1"])
+        self.assertIn("Kirkland (MyBuildingPermit, split by year)", r["searched"])
+        self.assertEqual(r["trust_level"], "partial")                      # a year stayed capped
+        self.assertEqual(r["next_step"]["reason"], "source_capped")
+        self.assertIn("MyBuildingPermit cities only", r["coverage_note"])
+        self.assertEqual(r["input"], "contractor: Brambila")
+        self.assertIn("summary", r)
+
+    def test_requires_name_or_license(self):
+        self.assertEqual(lookup.lookup_contractor("", "")["action"], "reject")
+
+    def test_license_search_uses_license_field(self):
+        calls = []
+        def mbp(_o, _t, jid, **kw):
+            calls.append(kw); return []
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", side_effect=mbp):
+            r = lookup.lookup_contractor(None, "BRAMBSL123AA")
+        self.assertTrue(all(kw["license"] == "BRAMBSL123AA" and kw["contractor"] == "" for kw in calls))
+        self.assertEqual(r["action"], "none")
+        self.assertEqual(r["trust_level"], "live")
+
+    def test_cli_flag_routes_to_contractor_search(self):
+        import os
+        completed = subprocess.run([sys.executable, str(REPO_ROOT / "lookup.py"), "--pipe", "--limit", "1",
+                                    "--contractor", "Brambila"],
+                                   cwd=REPO_ROOT, text=True, capture_output=True, env=os.environ, timeout=180)
+        d = json.loads(completed.stdout)
+        self.assertEqual(d["input"], "contractor: Brambila")
+        self.assertIn("coverage_note", d)

@@ -210,3 +210,31 @@ class CacheHoldsFullSetTests(unittest.TestCase):
 def server_lookup_all():
     import lookup
     return lookup.lookup_all
+
+
+class ContractorParamTests(unittest.TestCase):
+    def test_contractor_cached_and_shaped(self):
+        calls = []
+        def fake(name, lic, limit=None):
+            calls.append((name, lic))
+            return {"action": "found", "permits": [{"permit_number": "A", "applied_date": "2024-01-01", "is_open": True}],
+                    "message": "m", "permit_count": 1, "coverage_note": "MBP only"}
+        server.CACHE = server.TTLCache(300)
+        with patch.object(server, "run_contractor", side_effect=fake):
+            a = server.cached_contractor("Brambila", "", 50, None, None)
+            b = server.cached_contractor("brambila", None, 1, None, None)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(a["cached"]); self.assertTrue(b["cached"])
+        self.assertEqual(b["summary"]["total"], 1)
+
+    def test_rpc_routes_contractor_argument(self):
+        with patch.object(server, "cached_contractor", return_value={"action": "none", "permits": [], "summary": {}}) as cc, \
+             patch.object(server, "cached_lookup") as cl:
+            r = server.handle_rpc({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                   "params": {"name": server.TOOL_NAME, "arguments": {"contractor": "Brambila", "limit": 5}}})
+        cc.assert_called_once_with("Brambila", None, 5, None, None)
+        cl.assert_not_called()
+        self.assertFalse(r["result"]["isError"])
+        r = server.handle_rpc({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                               "params": {"name": server.TOOL_NAME, "arguments": {}}})
+        self.assertTrue(r["result"]["isError"])

@@ -115,6 +115,24 @@ def cached_lookup(query: str, limit=lookup.DEFAULT_LIMIT, since=None, types=None
     return {**shaped, "cached": cached, "cache_age_s": age}
 
 
+run_contractor = lookup.lookup_contractor
+
+
+def cached_contractor(name, license_no, limit=lookup.DEFAULT_LIMIT, since=None, types=None) -> dict:
+    key = "contractor|" + " ".join((name or "").split()).lower() + "|" + (license_no or "").strip().upper()
+    hit, age = CACHE.get(key)
+    if hit is None:
+        hit = run_contractor(name, license_no, limit=None)
+        age = 0
+        if hit.get("action") != "reject":
+            CACHE.put(key, hit)
+        cached = False
+    else:
+        cached = True
+    shaped = lookup.shape_result(hit, limit=limit, since=since, types=types)
+    return {**shaped, "cached": cached, "cache_age_s": age}
+
+
 def parse_shaping(args: dict) -> tuple:
     """(limit, since, types) from MCP arguments or REST query params; bad
     values fall back to defaults rather than failing the call."""
@@ -162,8 +180,12 @@ def openapi() -> dict:
                 "operationId": "lookupPermits",
                 "summary": "Permit history + status for an address, parcel or permit number",
                 "parameters": [
-                    {"name": "q", "in": "query", "required": True,
+                    {"name": "q", "in": "query", "required": False,
                      "schema": lookup.TOOL_SCHEMA["input_schema"]["properties"]["query"]},
+                    {"name": "contractor", "in": "query", "required": False, "schema": {"type": "string"},
+                     "description": "Contractor company name — pull history across MyBuildingPermit cities (use instead of q)"},
+                    {"name": "license", "in": "query", "required": False, "schema": {"type": "string"},
+                     "description": "WA L&I license number — same search by license"},
                     {"name": "limit", "in": "query", "required": False,
                      "schema": {"type": "integer", "minimum": 0, "default": lookup.DEFAULT_LIMIT},
                      "description": "Max permits returned, newest first; summary always covers the whole matched set"},
@@ -279,13 +301,18 @@ def handle_rpc(msg: dict) -> dict | None:
         name = params.get("name")
         if name != TOOL_NAME:
             return _rpc_error(id_, -32602, f"Unknown tool: {name}")
-        query = (params.get("arguments") or {}).get("query")
-        if not isinstance(query, str) or not query.strip():
+        args_ = params.get("arguments") or {}
+        query = args_.get("query")
+        contractor, license_no = args_.get("contractor"), args_.get("license")
+        limit, since, types = parse_shaping(args_)
+        if (isinstance(contractor, str) and contractor.strip()) or (isinstance(license_no, str) and license_no.strip()):
+            result = cached_contractor(contractor, license_no, limit, since, types)
+        elif not isinstance(query, str) or not query.strip():
             return {"jsonrpc": "2.0", "id": id_, "result": {
                 "isError": True,
-                "content": [{"type": "text", "text": "query (string) is required"}]}}
-        limit, since, types = parse_shaping(params.get("arguments") or {})
-        result = cached_lookup(query, limit, since, types)
+                "content": [{"type": "text", "text": "query (string) or contractor/license is required"}]}}
+        else:
+            result = cached_lookup(query, limit, since, types)
         return {"jsonrpc": "2.0", "id": id_, "result": {
             "isError": False,
             "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}],
@@ -354,12 +381,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/lookup":
             qs = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
             q = qs.get("q", "")
-            if not q.strip():
-                return self._send(400, {"error": "q is required"})
+            contractor, license_no = qs.get("contractor", ""), qs.get("license", "")
+            if not q.strip() and not contractor.strip() and not license_no.strip():
+                return self._send(400, {"error": "q (or contractor / license) is required"})
             if not LIMITER.allow(self._client()):
                 return self._send(429, {"error": "rate limited"}, extra={"Retry-After": "60"})
             limit, since, types = parse_shaping(qs)
-            result = cached_lookup(q, limit, since, types)
+            if contractor.strip() or license_no.strip():
+                result = cached_contractor(contractor, license_no, limit, since, types)
+            else:
+                result = cached_lookup(q, limit, since, types)
             return self._send(200, result)
         return self._send(404, {"error": "not found"})
 

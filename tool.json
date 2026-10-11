@@ -25,11 +25,18 @@
           "type": "string"
         },
         "description": "Case-insensitive substrings matched against each permit's type, e.g. ['electrical', 'mechanical']."
+      },
+      "contractor": {
+        "type": "string",
+        "description": "Contractor company name (substring) \u2014 returns what they have pulled across the MyBuildingPermit cities. Use instead of query."
+      },
+      "license": {
+        "type": "string",
+        "description": "WA L&I contractor license number \u2014 same search by license. Use instead of query."
       }
     },
-    "required": [
-      "query"
-    ]
+    "required": [],
+    "description": "Give `query` (address / parcel / permit number) OR `contractor` / `license` for a contractor pull-history search; never both."
   },
   "output_schema": {
     "type": "object",
@@ -55,6 +62,10 @@
       "filters": {
         "type": "object",
         "description": "The limit/since/types that produced this response"
+      },
+      "coverage_note": {
+        "type": "string",
+        "description": "Contractor searches only: which cities were (and were not) searched"
       },
       "permits": {
         "type": "array",
@@ -285,7 +296,8 @@
               "electrical_only",
               "parcel_resolution_failed",
               "source_incomplete",
-              "source_blocked"
+              "source_blocked",
+              "source_capped"
             ]
           },
           "city": {
@@ -325,7 +337,8 @@
             "enum": [
               "address",
               "parcel",
-              "permit"
+              "permit",
+              "contractor"
             ]
           },
           "covers_electrical": {

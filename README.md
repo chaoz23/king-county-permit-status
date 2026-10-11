@@ -262,6 +262,23 @@ Run the network-free regression suite with:
 python3 -m unittest discover -s tests -v
 ```
 
+## Contractor search
+
+```bash
+python3 lookup.py --contractor "Brambila"        # what a contractor has pulled
+python3 lookup.py --license BRAMBSL123AA         # same, by L&I license number
+```
+
+Searches MyBuildingPermit's People index across all of its jurisdictions (Auburn, Bellevue,
+Bothell, Burien, Edmonds, Federal Way, Issaquah, Kenmore, King County, Kirkland, Mercer
+Island, Mill Creek, Newcastle, Sammamish, Snoqualmie), concurrently, splitting busy
+contractors by applied-date window; same schema and `summary`. `coverage_note` says which
+cities are **not** searched by contractor (Seattle, Renton, Redmond, Shoreline, SeaTac,
+Woodinville, Normandy Park, Carnation — their portals' contractor searches aren't
+implemented). Pair with [`wa-contractor-license`](https://github.com/chaoz23/wa-contractor-license)
+for the license/bond/insurance check. Also on the hosted API: `?contractor=` / `?license=`,
+and the MCP tool's `contractor` / `license` arguments.
+
 ## Quality checks
 
 Four layers, each answering a different question:

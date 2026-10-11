@@ -55,7 +55,7 @@ def is_index_row(p: dict) -> bool:
 def check_city(city: str, address: str, row: dict) -> dict:
     """Run one lookup and compare with the scorecard row. Returns a report."""
     t0 = time.time()
-    r = lookup.lookup(address)
+    r = lookup.lookup(address, limit=None)      # unshaped: counts must be the real totals (#80)
     dt = round(time.time() - t0, 1)
     fails, warns = [], []
     name = row["city"]

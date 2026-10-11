@@ -2188,3 +2188,70 @@ class SourceBlockedNextStepTests(unittest.TestCase):
             r = lookup.lookup("16080 NE 85th St, Redmond, WA 98052")
         self.assertEqual(r["trust_level"], "partial")
         self.assertNotIn("next_step", r)
+
+
+class MbpCapSplitTests(unittest.TestCase):
+    """#81 — MBP's too-many-results cap is beaten by applied-date windows."""
+
+    def test_search_permits_sends_date_basis_only_with_dates(self):
+        seen = []
+
+        class Opener:
+            def open(self, req, timeout=0):
+                seen.append(urllib.parse.parse_qs(req.data.decode()))
+                class R:
+                    def read(self): return b"[]"
+                return R()
+        lookup.search_permits(Opener(), "tok", "5", parcel="123")
+        lookup.search_permits(Opener(), "tok", "5", parcel="123", from_date="01/01/2024", to_date="12/31/2024")
+        self.assertNotIn("SelectedDateRanges", seen[0])
+        self.assertEqual(seen[1]["SelectedDateRanges"], ["Applied"])
+        self.assertEqual(seen[1]["FromDate"], ["01/01/2024"])
+
+    def test_split_unions_windows_and_shrinks_capped_ones(self):
+        cap = "Search returned too many results. Please refine your search criteria."
+        calls = []
+        def fake(opener, token, jid, from_date="", to_date="", **crit):
+            calls.append((from_date, to_date))
+            lo, hi = int(from_date[-4:]), int(to_date[-4:])
+            if lo == 2025 and hi == 2026:
+                return cap                                  # 2-year window capped → shrink
+            if lo == hi == 2026:
+                return [{"PermitNumber": "K-2026"}]
+            if lo == hi == 2025:
+                return cap                                  # a single year still capped
+            if lo <= 2023 <= hi:
+                return [{"PermitNumber": "K-2023"}, {"PermitNumber": "K-2023"}]   # dup within MBP
+            return []
+        with patch.object(lookup, "search_permits", side_effect=fake), \
+             patch.object(lookup, "datetime") as dt:
+            dt.now.return_value.year = 2026
+            rows, capped = lookup.search_permits_split(object(), "tok", "5", parcel="123")
+        self.assertEqual(sorted(p["PermitNumber"] for p in rows), ["K-2023", "K-2026"])
+        self.assertEqual(capped, ["2025"])
+        self.assertTrue(any(f == "01/01/1989" or f == "01/01/1990" for f, _ in calls))   # walked back to the floor
+
+    def test_lookup_splits_when_parcel_search_is_capped(self):
+        cap = "Search returned too many results. Please refine your search criteria."
+        def mbp(_o, _t, jid, **kw):
+            if jid != lookup.JURIS_BY_NAME["kirkland"]:
+                return []
+            if "from_date" in kw:
+                return [{"PermitNumber": f"K-{kw['from_date'][-4:]}", "Jurisdiction": "Kirkland",
+                         "PermitType": "Building", "PermitStatus": "Issued", "AppliedDate": None}]
+            return cap
+        loc = {"matched_address": "x", "score": 100, "match_type": "point", "partial_match": False,
+               "street_number_snapped": False, "county": "king", "parcel_id": "king:3885808355",
+               "pin": "3885808355", "geocoder_city": "Kirkland", "jurisdiction": "Kirkland",
+               "jurisdiction_basis": "city-limits", "unincorporated": False, "parcel_basis": "address-point"}
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", side_effect=mbp), \
+             patch.object(lookup, "resolve_location", return_value=loc), \
+             patch.object(lookup, "search_bellevue", return_value=[]), \
+             patch.object(lookup, "search_assessor", return_value=([], [])), \
+             patch.object(lookup, "search_lni", return_value=([], [])):
+            r = lookup.lookup("123 5th Ave, Kirkland, WA 98033", limit=None)
+        self.assertIn("Kirkland (MyBuildingPermit, split by year)", r["searched"])
+        self.assertGreater(r["permit_count"], 10)              # one synthetic row per window
+        self.assertEqual(r["trust_level"], "live")             # every window answered
+        self.assertNotIn("errors", r)

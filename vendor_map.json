@@ -1,0 +1,2156 @@
+{
+ "title": "King County permit-vendor map",
+ "generated_from": [
+  "lookup.py adapter config",
+  "routing_data.json",
+  "source_health.json (record depth)"
+ ],
+ "routing_data_verified": "2026-10-08",
+ "cities": 39,
+ "tally": {
+  "live": 20,
+  "blocked": 10,
+  "indexed": 9
+ },
+ "vendors": [
+  "ASP.gov (results require login)",
+  "Accela Citizen Access",
+  "Bellevue (MyBuildingPermit + Open Data)",
+  "King County Permitting (MyBuildingPermit KC + KC Accela)",
+  "LAMA",
+  "MyBuildingPermit (eCityGov)",
+  "No public permit portal (history via KC Assessor index)",
+  "No public search — monthly XLSX permit logs + applicant SSO",
+  "OpenGov PLC (Turnstile-gated; browser only)",
+  "PermitTrax Citizens Connect",
+  "Renton EnerGov",
+  "Seattle SDCI (Accela portal; open data)",
+  "SmartGov (Granicus)",
+  "Tyler EnerGov Civic Access",
+  "eTRAKiT (CentralSquare)"
+ ],
+ "rows": [
+  {
+   "city": "Algona",
+   "key": "algona",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://www.algonawa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 2
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Auburn",
+   "key": "auburn",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 19,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Beaux Arts Village",
+   "key": "beaux arts village",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://beauxarts-wa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 5
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Bellevue",
+   "key": "bellevue",
+   "status": "live",
+   "system": "Bellevue (MyBuildingPermit + Open Data)",
+   "vendor_class": "mbp+arcgis",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "MyBuildingPermit form POST + Bellevue ArcGIS FeatureServer REST (daily snapshot, 1998+)",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 50,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "land_use": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "fire": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "grading": {
+     "system": "Bellevue (MyBuildingPermit + Open Data)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Bellevue (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Black Diamond",
+   "key": "black diamond",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://www.blackdiamondwa.gov/permits",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 2
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Bothell",
+   "key": "bothell",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 46,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Burien",
+   "key": "burien",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 27,
+    "index": 1
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Burien (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Carnation",
+   "key": "carnation",
+   "status": "live",
+   "system": "SmartGov (Granicus)",
+   "vendor_class": "smartgov",
+   "portal": "https://ci-carnation-wa.smartgovcommunity.com/ApplicationPublic/ApplicationSearch",
+   "mechanism": "SmartGov form POST with time-based validator token; SearchPage paginator",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 2,
+    "index": 4
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "land_use": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "fire": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "grading": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Clyde Hill",
+   "key": "clyde hill",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://www.clydehill.org/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 3
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Covington",
+   "key": "covington",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://covington-wa.permittrax.com/citizen/Home/COVWA_L/PERMIT",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 24
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Des Moines",
+   "key": "des moines",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://desmoines-wa.permittrax.com/citizen/Home/DESMON_L/PBPW",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "city",
+   "electrical_searched": false,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 17
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "Des Moines (self-run electrical program)",
+     "live": false
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Duvall",
+   "key": "duvall",
+   "status": "blocked",
+   "system": "OpenGov PLC (Turnstile-gated; browser only)",
+   "vendor_class": "blocked",
+   "portal": "https://duvallwa.portal.opengov.com/search",
+   "mechanism": "Clean JSON:API, but every call needs Cloudflare Turnstile proof-of-possession headers (403 without)",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Clean JSON:API, but every call needs Cloudflare Turnstile proof-of-possession headers (403 without)",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/21",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 1
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "land_use": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "fire": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "grading": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Enumclaw",
+   "key": "enumclaw",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://enumclaw_wa.permittrax.com/citizen",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 3
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Federal Way",
+   "key": "federal way",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 46,
+    "index": 4
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Federal Way (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Hunts Point",
+   "key": "hunts point",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://huntspoint-wa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 2
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Issaquah",
+   "key": "issaquah",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 13,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Kenmore",
+   "key": "kenmore",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 50,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Kent",
+   "key": "kent",
+   "status": "blocked",
+   "system": "No public search — monthly XLSX permit logs + applicant SSO",
+   "vendor_class": "blocked",
+   "portal": "https://www.kentwa.gov/pay-and-apply/apply-for-a-permit/permit-logs",
+   "mechanism": "No search at all: monthly XLSX/PDF logs on kentwa.gov plus an applicant-only SSO portal",
+   "searched_by_this_tool": false,
+   "blocked_reason": "No search at all: monthly XLSX/PDF logs on kentwa.gov plus an applicant-only SSO portal",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/24",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 7
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "fire": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "grading": {
+     "system": "No public search — monthly XLSX permit logs + applicant SSO",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "King County (unincorporated)",
+   "key": "king county",
+   "status": "live",
+   "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+   "vendor_class": "mbp+accela",
+   "portal": "https://aca-prod.accela.com/KINGCO/Cap/CapHome.aspx?module=Building",
+   "mechanism": "MyBuildingPermit KC jurisdiction + KC Accela global search (older history, enforcement)",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 26,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+     "live": true
+    },
+    "land_use": {
+     "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+     "live": true
+    },
+    "fire": {
+     "system": "King County Fire Marshal",
+     "live": true
+    },
+    "grading": {
+     "system": "King County Permitting (MyBuildingPermit KC + KC Accela)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Kirkland",
+   "key": "kirkland",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 13,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Kirkland (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Lake Forest Park",
+   "key": "lake forest park",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://www.cityoflfp.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 1
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Maple Valley",
+   "key": "maple valley",
+   "status": "blocked",
+   "system": "OpenGov PLC (Turnstile-gated; browser only)",
+   "vendor_class": "blocked",
+   "portal": "https://maplevalleywa.portal.opengov.com/search",
+   "mechanism": "Clean JSON:API, but every call needs Cloudflare Turnstile proof-of-possession headers (403 without)",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Clean JSON:API, but every call needs Cloudflare Turnstile proof-of-possession headers (403 without)",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/21",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 8
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "land_use": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "fire": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "grading": {
+     "system": "OpenGov PLC (Turnstile-gated; browser only)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Medina",
+   "key": "medina",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://www.medina-wa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 5
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Mercer Island",
+   "key": "mercer island",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 12,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Mercer Island (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Milton",
+   "key": "milton",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://milton_wa.permittrax.com/citizen/Home/MILTON_L/PERMIT",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "city",
+   "electrical_searched": false,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "Milton (self-run electrical program)",
+     "live": false
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Newcastle",
+   "key": "newcastle",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 43,
+    "index": 3
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Normandy Park",
+   "key": "normandy park",
+   "status": "live",
+   "system": "SmartGov (Granicus)",
+   "vendor_class": "smartgov",
+   "portal": "https://ci-normandypark-wa.smartgovcommunity.com/ApplicationPublic/ApplicationSearch",
+   "mechanism": "SmartGov form POST with time-based validator token; SearchPage paginator",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 21,
+    "index": 8
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "land_use": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "fire": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "grading": {
+     "system": "SmartGov (Granicus)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Normandy Park (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "North Bend",
+   "key": "north bend",
+   "status": "blocked",
+   "system": "PermitTrax Citizens Connect",
+   "vendor_class": "blocked",
+   "portal": "https://northbend-wa.permittrax.com/citizen",
+   "mechanism": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Blazor Server over SignalR — the search never issues an HTTP request an adapter could replay",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/18",
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 2
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "land_use": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "fire": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "grading": {
+     "system": "PermitTrax Citizens Connect",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Pacific",
+   "key": "pacific",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://www.pacificwa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 8
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Redmond",
+   "key": "redmond",
+   "status": "live",
+   "system": "Tyler EnerGov Civic Access",
+   "vendor_class": "civicaccess",
+   "portal": "https://cityofredmondwa-energovweb.tylerhost.net/apps/selfservice#/home",
+   "mechanism": "Tyler EnerGov Civic Access JSON API — tenant headers, FilterModule=2, 100/page",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 32,
+    "index": 3
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "land_use": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "fire": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "grading": {
+     "system": "Tyler EnerGov Civic Access",
+     "live": true
+    },
+    "electrical": {
+     "system": "Redmond (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Renton",
+   "key": "renton",
+   "status": "live",
+   "system": "Renton EnerGov",
+   "vendor_class": "energov",
+   "portal": "https://permitting.rentonwa.gov",
+   "mechanism": "Tyler EnerGov JSON API — criteria template + tenant headers, search by parcel",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 24,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "land_use": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "fire": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "grading": {
+     "system": "Renton EnerGov",
+     "live": true
+    },
+    "electrical": {
+     "system": "Renton (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Sammamish",
+   "key": "sammamish",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 11,
+    "index": 5
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Sammamish (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "SeaTac",
+   "key": "seatac",
+   "status": "live",
+   "system": "LAMA",
+   "vendor_class": "lama",
+   "portal": "https://lama.seatacwa.gov/Search.aspx",
+   "mechanism": "LAMA (ASP.NET WebForms) VIEWSTATE POST, filter+sort+200/page in one request",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 48,
+    "index": 2
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "LAMA",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "LAMA",
+     "live": true
+    },
+    "land_use": {
+     "system": "LAMA",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "LAMA",
+     "live": true
+    },
+    "fire": {
+     "system": "LAMA",
+     "live": true
+    },
+    "grading": {
+     "system": "LAMA",
+     "live": true
+    },
+    "electrical": {
+     "system": "SeaTac (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Seattle",
+   "key": "seattle",
+   "status": "live",
+   "system": "Seattle SDCI (Accela portal; open data)",
+   "vendor_class": "socrata",
+   "portal": "https://cosaccela.seattle.gov/portal/",
+   "mechanism": "Seattle Open Data Socrata REST (4 datasets); parcel queries via the Assessor site address",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "city",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 50,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "land_use": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "fire": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "grading": {
+     "system": "Seattle SDCI (Accela portal; open data)",
+     "live": true
+    },
+    "electrical": {
+     "system": "Seattle (self-run electrical program)",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Shoreline",
+   "key": "shoreline",
+   "status": "live",
+   "system": "eTRAKiT (CentralSquare)",
+   "vendor_class": "etrakit",
+   "portal": "https://permits.shorelinewa.gov/eTRAKiT/",
+   "mechanism": "eTRAKiT VIEWSTATE POST → CSV export; detail page per permit for status (time-boxed)",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 38,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "land_use": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "fire": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "grading": {
+     "system": "eTRAKiT (CentralSquare)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Skykomish",
+   "key": "skykomish",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://skykomishwa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 3
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Snoqualmie",
+   "key": "snoqualmie",
+   "status": "live",
+   "system": "MyBuildingPermit (eCityGov)",
+   "vendor_class": "mbp",
+   "portal": "https://permitsearch.mybuildingpermit.com/",
+   "mechanism": "form POST (parcel-first; applied-date windows beat the result cap); People search for contractors",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 48,
+    "index": 0
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "land_use": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "fire": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "grading": {
+     "system": "MyBuildingPermit (eCityGov)",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Tukwila",
+   "key": "tukwila",
+   "status": "blocked",
+   "system": "ASP.gov (results require login)",
+   "vendor_class": "blocked",
+   "portal": "https://www.tukwilawa.gov/departments/community-development/",
+   "mechanism": "Permit results are behind an account login",
+   "searched_by_this_tool": false,
+   "blocked_reason": "Permit results are behind an account login",
+   "tracking_issue": "https://github.com/chaoz23/king-county-permit-status/issues/23",
+   "electrical_authority": "city",
+   "electrical_searched": false,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 6
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "land_use": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "fire": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "grading": {
+     "system": "ASP.gov (results require login)",
+     "live": false
+    },
+    "electrical": {
+     "system": "Tukwila (self-run electrical program)",
+     "live": false
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Woodinville",
+   "key": "woodinville",
+   "status": "live",
+   "system": "Accela Citizen Access",
+   "vendor_class": "accela",
+   "portal": "https://aca-prod.accela.com/WOODINVILLE/Cap/CapHome.aspx?module=DevelopmentServices",
+   "mechanism": "Accela Citizen Access GlobalSearchResults GET → HTML grid; pager replayed via postback",
+   "searched_by_this_tool": true,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 9,
+    "index": 1
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "mechanical_plumbing": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "land_use": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "engineering_row": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "fire": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "grading": {
+     "system": "Accela Citizen Access",
+     "live": true
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  },
+  {
+   "city": "Yarrow Point",
+   "key": "yarrow point",
+   "status": "indexed",
+   "system": "No public permit portal (history via KC Assessor index)",
+   "vendor_class": "none",
+   "portal": "https://yarrowpointwa.gov/",
+   "mechanism": "No public permit portal; history via the King County Assessor parcel index",
+   "searched_by_this_tool": false,
+   "blocked_reason": null,
+   "tracking_issue": null,
+   "electrical_authority": "WA L&I",
+   "electrical_searched": true,
+   "history_index": "King County Assessor parcel index",
+   "records_at_qc_address": {
+    "live": 0,
+    "index": 1
+   },
+   "routing_by_type": {
+    "building": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "mechanical_plumbing": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "land_use": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "engineering_row": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "fire": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "grading": {
+     "system": "No public permit portal (history via KC Assessor index)",
+     "live": false
+    },
+    "electrical": {
+     "system": "WA State L&I",
+     "live": true
+    },
+    "septic": {
+     "system": "King County Public Health",
+     "live": false
+    }
+   }
+  }
+ ],
+ "recipes": "https://github.com/chaoz23/king-county-permit-status/blob/main/docs/EPIC-coverage-and-hardening.md",
+ "tool": "https://github.com/chaoz23/king-county-permit-status"
+}

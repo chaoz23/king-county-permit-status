@@ -3,7 +3,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY lookup.py city_utils.py route.py server.py routing_data.json tool.json ./
+COPY lookup.py city_utils.py route.py server.py routing_data.json tool.json vendor_map.json ./
 # Optional: last weekly sweep, surfaced on /healthz (build still works without it)
 COPY source_health.jso[n] ./
 RUN useradd -r -u 10001 kcps

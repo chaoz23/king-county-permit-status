@@ -29,6 +29,7 @@ The same lookup is served read-only, no auth, from `permits-api.secondlandings.a
 |---|---|
 | **MCP** (Streamable HTTP) | `POST https://permits-api.secondlandings.ai/mcp` — tool `king_county_permit_status`, arg `query` |
 | **REST** | `GET https://permits-api.secondlandings.ai/api/lookup?q=1817+Morris+Ave+S,+Renton+WA` — optional `limit`, `since=YYYY-MM-DD`, `types=electrical,mechanical` |
+| **Vendor map** | `/vendor-map` (and `/vendor-map.json`) — which permitting system each of the 39 cities runs, how it is queried or why it can't be, electrical authority, per-type routing; generated from the adapter config (`scripts/gen_vendor_map.py`, also in [docs/vendor-map.md](docs/vendor-map.md)) |
 | **OpenAPI 3.1** (typed) | `/openapi.json` · agent orientation `/llms.txt` · CLI definition `/tool.json` · `/healthz` |
 
 Results are live; the server caches each query for 15 minutes and rate-limits

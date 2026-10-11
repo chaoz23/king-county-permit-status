@@ -32,7 +32,11 @@ The same lookup is served read-only, no auth, from `permits-api.secondlandings.a
 | **OpenAPI 3.1** (typed) | `/openapi.json` · agent orientation `/llms.txt` · CLI definition `/tool.json` · `/healthz` |
 
 Results are live; the server caches each query for 15 minutes and rate-limits
-per client (30/min) to protect the municipal portals. Run it yourself with
+per client (30/min) to protect the municipal portals. **Known hosted-only gap:** Tyler's
+hosted Civic Access (Redmond) returns 403 to datacenter IPs, so from the hosted endpoint a
+Redmond lookup carries the Assessor index plus a `next_step` with `reason: source_blocked`
+instead of live Redmond records; run `lookup.py` locally for those. Every other source
+answers from the droplet. Run it yourself with
 `python3 server.py` or `docker compose up` — `server.json` is the MCP Registry manifest.
 
 Parcel-number searches query every supported MyBuildingPermit and live city
@@ -86,7 +90,7 @@ mailing city is only used when geocoding fails (`jurisdiction.basis` says which)
 | `filters` | The `limit` / `since` / `types` that produced this response |
 | `searched` | Which jurisdictions were searched |
 | `separate_portal` | If the city has an unsupported portal: city name + URL + prose note |
-| `next_step` | Structured twin of `separate_portal` for agents: `kind: manual_portal_search`, `reason` (`no_feed` / `electrical_only` / `parcel_resolution_failed` / `source_incomplete`), `portal_url` (the portal's actual search page when known — PermitTrax, LAMA, OpenGov, Kent), `vendor`, `search_by` (inputs that page accepts; empty when login-gated), `query`, `query_type`, `covers_electrical`, `hint` |
+| `next_step` | Structured twin of `separate_portal` for agents: `kind: manual_portal_search`, `reason` (`no_feed` / `electrical_only` / `parcel_resolution_failed` / `source_incomplete` / `source_blocked` — the city's live system refused this client with 403), `portal_url` (the portal's actual search page when known — PermitTrax, LAMA, OpenGov, Kent), `vendor`, `search_by` (inputs that page accepts; empty when login-gated), `query`, `query_type`, `covers_electrical`, `hint` |
 | `errors` | Source errors when a search is incomplete; may accompany permits from successful sources |
 | `trust_level` | `live` (every applicable source answered), `partial` (a source errored or hit its result cap — see `errors`), `fallback` (nothing searchable). A city that needs a manual portal visit (`next_step`) is a scope fact, not distrust, and no longer lowers this |
 | `fetched_at` | UTC timestamp of the query — records are live, never cached |

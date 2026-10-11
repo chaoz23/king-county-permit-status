@@ -2159,3 +2159,32 @@ class TrustLevelSemanticsTests(unittest.TestCase):
              patch.object(lookup, "search_lni", return_value=([], ["L&I down"])):
             r = lookup.lookup("220 4th Ave S, Kent, WA 98032")
         self.assertEqual(r["trust_level"], "partial")
+
+
+class SourceBlockedNextStepTests(unittest.TestCase):
+    """A live city source that 403s (datacenter IP block) yields a next_step."""
+
+    def test_403_from_city_source_points_at_portal(self):
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "resolve_location", return_value=None), \
+             patch.object(lookup, "search_energov_civicaccess", return_value=([], ["HTTP Error 403: Forbidden"])), \
+             patch.object(lookup, "search_lni", return_value=([], [])):
+            r = lookup.lookup("16080 NE 85th St, Redmond, WA 98052")
+        self.assertEqual(r["trust_level"], "partial")
+        ns = r["next_step"]
+        self.assertEqual(ns["reason"], "source_blocked")
+        self.assertEqual(ns["city"], "Redmond")
+        self.assertEqual(ns["portal_url"], lookup.SEPARATE_PORTALS["redmond"])
+        self.assertTrue(ns["covers_electrical"])            # Redmond self-runs electrical
+        self.assertIn("403", r["separate_portal"]["note"])
+
+    def test_non_403_error_does_not_create_portal_note(self):
+        with patch.object(lookup, "get_session", return_value=(object(), "tok")), \
+             patch.object(lookup, "search_permits", return_value=[]), \
+             patch.object(lookup, "resolve_location", return_value=None), \
+             patch.object(lookup, "search_energov_civicaccess", return_value=([], ["timed out"])), \
+             patch.object(lookup, "search_lni", return_value=([], [])):
+            r = lookup.lookup("16080 NE 85th St, Redmond, WA 98052")
+        self.assertEqual(r["trust_level"], "partial")
+        self.assertNotIn("next_step", r)

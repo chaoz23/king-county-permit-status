@@ -141,6 +141,7 @@ def build_next_step(city: str, reason: str, query: str, input_type: str,
     """Structured follow-up for an agent when a city can't be searched here.
 
     reason: no_feed | electrical_only | parcel_resolution_failed | source_incomplete
+            | source_blocked (the city's live system returned 403 to this client)
     """
     key = (city or "").lower()
     manual = MANUAL_PORTALS.get(key, {})
@@ -2247,6 +2248,22 @@ def lookup_all(raw_input: str) -> dict:
             "suggestions": suggestions,
         }
 
+    # A live city source that refused us (HTTP 403 — bot filter / datacenter IP
+    # block, e.g. Tyler's host from the hosted endpoint) is a scope fact the
+    # agent must act on: point at the portal rather than leaving the records
+    # silently missing. Only when no other portal note already applies.
+    if city and not separate_portal_note and any(
+            re.search(r"\b403\b|forbidden", e, re.I) for e in errors):
+        blocked = [e for e in errors if re.search(r"\b403\b|forbidden", e, re.I)]
+        separate_portal_note = {
+            "city": display_city(city),
+            "portal": SEPARATE_PORTALS.get(city) or MANUAL_PORTALS.get(city, {}).get("search_url"),
+            "note": (f"{display_city(city)}'s permit system refused this request "
+                     f"({blocked[0]}); its live records are missing here — check the portal directly."),
+            "reason": "source_blocked",
+            "electrical": city in CITIES_OWN_ELECTRICAL,
+        }
+
     if separate_portal_note:
         reason = separate_portal_note.pop("reason", "no_feed")
         result["separate_portal"] = separate_portal_note
@@ -2485,7 +2502,7 @@ TOOL_SCHEMA = {
                 "description": "Structured twin of separate_portal: the exact follow-up an agent can take. kind=manual_portal_search; reason in no_feed|electrical_only|parcel_resolution_failed|source_incomplete; portal_url (the portal's search page when known); vendor; search_by (inputs that page accepts, empty when login-gated); query/query_type to re-use; covers_electrical; hint.",
                 "properties": {
                     "kind": {"type": "string", "enum": ["manual_portal_search"]},
-                    "reason": {"type": "string", "enum": ["no_feed", "electrical_only", "parcel_resolution_failed", "source_incomplete"]},
+                    "reason": {"type": "string", "enum": ["no_feed", "electrical_only", "parcel_resolution_failed", "source_incomplete", "source_blocked"]},
                     "city": {"type": ["string", "null"]},
                     "portal_url": {"type": ["string", "null"]},
                     "vendor": {"type": ["string", "null"]},

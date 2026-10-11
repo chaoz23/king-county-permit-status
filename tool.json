@@ -271,7 +271,8 @@
               "no_feed",
               "electrical_only",
               "parcel_resolution_failed",
-              "source_incomplete"
+              "source_incomplete",
+              "source_blocked"
             ]
           },
           "city": {

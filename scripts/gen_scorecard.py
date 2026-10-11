@@ -35,6 +35,13 @@ def load_health():
         return {}
 
 
+def depth_counts(city, health):
+    """(own, index) record counts at the QC address from the last scorecard QC
+    run (source_health.json → scorecard_qc.counts), or None."""
+    counts = ((health.get("scorecard_qc") or {}).get("counts") or {}).get(city.lower())
+    return (counts.get("own", 0), counts.get("index", 0)) if counts else None
+
+
 def health_cell(city, on_mbp, dedicated, health):
     """One cell: worst outcome across the probes that back this city."""
     key = city.lower()
@@ -100,6 +107,7 @@ def classify(city, mbp, own_elec, health=None):
     dedicated = key in DEDICATED
     owns_elec = key in own_elec
     health_icon = health_cell(city, on_mbp, dedicated, health or {})
+    depth = depth_counts(city, health or {})
     live_building = on_mbp or dedicated
 
     # source label
@@ -140,7 +148,19 @@ def classify(city, mbp, own_elec, health=None):
         "city": display_name(city), "status": status, "source": source,
         "building": building, "electrical": electrical,
         "trade": trade, "landuse": landuse, "health": health_icon,
+        "depth": depth,      # (live rows, index rows) at the QC address, or None
     }
+
+
+def building_cell(r):
+    """Building column carries the depth (#80): ✅ 300 / 🗂️ 25 — records seen at
+    the QC address, so an 'indexed' row shows how much is actually behind it."""
+    base = CELL[r["building"]]
+    if not r.get("depth"):
+        return base
+    own, index = r["depth"]
+    n = own if r["building"] == "yes" else index
+    return f"{base} {n}"
 
 
 def render(rows, health=None):
@@ -152,6 +172,8 @@ def render(rows, health=None):
            "(`python3 scripts/gen_scorecard.py --write`). "
            "One row per King County city.", "",
            "**Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history "
+           "· the number after ✅/🗂️ in Building is the record count at the city's QC address "
+           "(see `qc_addresses.json`) — how much is really behind the row "
            "from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only "
            "(2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)",
            "",
@@ -167,7 +189,7 @@ def render(rows, health=None):
         tally[r["status"]] += 1
         out.append("| {city} | {status} | {source} | {h} | {b} | {e} | {t} | {l} |".format(
             city=r["city"], status=r["status"], source=r["source"], h=r["health"],
-            b=CELL[r["building"]], e=CELL[r["electrical"]],
+            b=building_cell(r), e=CELL[r["electrical"]],
             t=CELL[r["trade"]], l=CELL[r["landuse"]]))
     # County-level row (unincorporated King County): building/septic/critical-areas
     # via the MyBuildingPermit "King County" jurisdiction; electrical via L&I.

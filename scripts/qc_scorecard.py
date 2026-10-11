@@ -108,7 +108,7 @@ def check_city(city: str, address: str, row: dict) -> dict:
         if not ns.get("covers_electrical"):
             fails.append("electrical gap not flagged in next_step.covers_electrical")
 
-    return {"city": name, "address": address, "status": row["status"], "electrical": e,
+    return {"city": name, "key": key, "address": address, "status": row["status"], "electrical": e,
             "action": r.get("action"), "permits": len(permits), "own": len(own), "index": len(idx),
             "trust": r.get("trust_level"), "elapsed_s": dt,
             "outcome": "FAIL" if fails else ("WARN" if warns else "PASS"),

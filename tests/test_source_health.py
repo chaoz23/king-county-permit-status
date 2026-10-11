@@ -90,3 +90,16 @@ class StatusCensusTests(unittest.TestCase):
         self.assertEqual(r["outcome"], "ok")
         self.assertEqual(r["statuses"], {"Issued": {"n": 2, "is_open": True},
                                          "Finaled": {"n": 1, "is_open": False}})
+
+
+class IndexDepthTests(unittest.TestCase):
+    def test_building_cell_carries_depth(self):
+        h = {"scorecard_qc": {"counts": {"kent": {"own": 0, "index": 7}, "burien": {"own": 27, "index": 1}}}}
+        self.assertEqual(gen_scorecard.depth_counts("Kent", h), (0, 7))
+        self.assertIsNone(gen_scorecard.depth_counts("Nowhere", h))
+        row_idx = {"building": "index", "depth": (0, 7)}
+        row_live = {"building": "yes", "depth": (27, 1)}
+        row_none = {"building": "index", "depth": None}
+        self.assertEqual(gen_scorecard.building_cell(row_idx), "🗂️ index 7")
+        self.assertEqual(gen_scorecard.building_cell(row_live), "✅ 27")
+        self.assertEqual(gen_scorecard.building_cell(row_none), "🗂️ index")

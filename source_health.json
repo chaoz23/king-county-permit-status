@@ -225,7 +225,7 @@
    ]
   }
  },
- "checked_at": "2026-10-12T22:04:20+00:00",
+ "checked_at": "2026-10-19T19:40:51+00:00",
  "summary": {
   "ok": 27
  },
@@ -235,14 +235,14 @@
    "outcome": "ok",
    "records": 24,
    "detail": "24 records",
-   "elapsed_ms": 2435,
+   "elapsed_ms": 1703,
    "statuses": {
     "Pass": {
-     "n": 9,
+     "n": 8,
      "is_open": true
     },
     "Fail": {
-     "n": 4,
+     "n": 5,
      "is_open": true
     },
     "Cancel - Reinspect": {
@@ -272,7 +272,7 @@
    "outcome": "ok",
    "records": 131,
    "detail": "131 records",
-   "elapsed_ms": 2922,
+   "elapsed_ms": 2145,
    "statuses": {
     "Completed": {
      "n": 105,
@@ -309,7 +309,7 @@
    "outcome": "ok",
    "records": 356,
    "detail": "356 records",
-   "elapsed_ms": 149,
+   "elapsed_ms": 97,
    "statuses": {
     "Closed": {
      "n": 234,
@@ -358,7 +358,7 @@
    "outcome": "ok",
    "records": 53,
    "detail": "53 records",
-   "elapsed_ms": 4343,
+   "elapsed_ms": 2249,
    "statuses": {
     "ARCHIVED": {
      "n": 8,
@@ -368,10 +368,6 @@
      "n": 5,
      "is_open": false
     },
-    "CLOSED": {
-     "n": 3,
-     "is_open": false
-    },
     "RECORDS ARCHIVED": {
      "n": 2,
      "is_open": false
@@ -379,6 +375,10 @@
     "ISSUED": {
      "n": 2,
      "is_open": true
+    },
+    "CLOSED": {
+     "n": 2,
+     "is_open": false
     }
    }
   },
@@ -387,7 +387,7 @@
    "outcome": "ok",
    "records": 32,
    "detail": "32 records",
-   "elapsed_ms": 6570,
+   "elapsed_ms": 5247,
    "statuses": {
     "Finaled": {
      "n": 24,
@@ -412,7 +412,7 @@
    "outcome": "ok",
    "records": 9,
    "detail": "9 records",
-   "elapsed_ms": 1143,
+   "elapsed_ms": 940,
    "statuses": {
     "Finaled": {
      "n": 4,
@@ -433,7 +433,7 @@
    "outcome": "ok",
    "records": 14,
    "detail": "14 records",
-   "elapsed_ms": 687,
+   "elapsed_ms": 1139,
    "statuses": {
     "Closed": {
      "n": 6,
@@ -456,16 +456,16 @@
   "smartgov:normandy park": {
    "label": "Normandy Park (SmartGov)",
    "outcome": "ok",
-   "records": 21,
-   "detail": "21 records",
-   "elapsed_ms": 1766,
+   "records": 22,
+   "detail": "22 records",
+   "elapsed_ms": 864,
    "statuses": {
     "Closed": {
      "n": 13,
      "is_open": false
     },
     "Issued": {
-     "n": 3,
+     "n": 4,
      "is_open": true
     },
     "Under Review": {
@@ -491,7 +491,7 @@
    "outcome": "ok",
    "records": 2,
    "detail": "2 records",
-   "elapsed_ms": 1118,
+   "elapsed_ms": 525,
    "statuses": {
     "Closed": {
      "n": 1,
@@ -508,18 +508,18 @@
    "outcome": "ok",
    "records": 178,
    "detail": "178 records; non-fatal: showing first 200 of 343 matches — narrow the search",
-   "elapsed_ms": 6080,
+   "elapsed_ms": 4853,
    "statuses": {
     "Permit Finalized": {
      "n": 138,
      "is_open": false
     },
     "Permit Expired": {
-     "n": 18,
+     "n": 19,
      "is_open": false
     },
     "Permit Issued": {
-     "n": 13,
+     "n": 12,
      "is_open": true
     },
     "Inspections Complete": {
@@ -537,7 +537,7 @@
    "outcome": "ok",
    "records": 7,
    "detail": "7 records",
-   "elapsed_ms": 1843,
+   "elapsed_ms": 845,
    "statuses": {}
   },
   "lni": {
@@ -545,7 +545,7 @@
    "outcome": "ok",
    "records": 12,
    "detail": "12 records",
-   "elapsed_ms": 10424,
+   "elapsed_ms": 2207,
    "statuses": {
     "Inactive": {
      "n": 12,
@@ -558,7 +558,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 743,
+   "elapsed_ms": 823,
    "statuses": {}
   },
   "mbp:bellevue": {
@@ -566,7 +566,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 3235,
+   "elapsed_ms": 724,
    "statuses": {}
   },
   "mbp:bothell": {
@@ -574,7 +574,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 697,
+   "elapsed_ms": 282,
    "statuses": {}
   },
   "mbp:burien": {
@@ -582,7 +582,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 969,
+   "elapsed_ms": 644,
    "statuses": {}
   },
   "mbp:edmonds": {
@@ -590,7 +590,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 717,
+   "elapsed_ms": 661,
    "statuses": {}
   },
   "mbp:federal way": {
@@ -598,7 +598,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1293,
+   "elapsed_ms": 355,
    "statuses": {}
   },
   "mbp:issaquah": {
@@ -606,7 +606,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 968,
+   "elapsed_ms": 301,
    "statuses": {}
   },
   "mbp:kenmore": {
@@ -614,7 +614,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 663,
+   "elapsed_ms": 250,
    "statuses": {}
   },
   "mbp:king county": {
@@ -622,7 +622,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 656,
+   "elapsed_ms": 278,
    "statuses": {}
   },
   "mbp:kirkland": {
@@ -630,7 +630,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 865,
+   "elapsed_ms": 1258,
    "statuses": {}
   },
   "mbp:mercer island": {
@@ -638,7 +638,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1088,
+   "elapsed_ms": 594,
    "statuses": {}
   },
   "mbp:mill creek": {
@@ -646,7 +646,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 883,
+   "elapsed_ms": 483,
    "statuses": {}
   },
   "mbp:newcastle": {
@@ -654,7 +654,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 824,
+   "elapsed_ms": 451,
    "statuses": {}
   },
   "mbp:sammamish": {
@@ -662,7 +662,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 891,
+   "elapsed_ms": 329,
    "statuses": {}
   },
   "mbp:snoqualmie": {
@@ -670,7 +670,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1203,
+   "elapsed_ms": 515,
    "statuses": {}
   }
  },
@@ -680,32 +680,12 @@
   "errored": 0,
   "slow": [
    [
-    "real/Bellevue",
-    13.6
-   ],
-   [
-    "real/Shoreline",
-    11.5
-   ],
-   [
-    "real/Vashon(unincorp)",
-    8.3
-   ],
-   [
     "real/parcel-Renton",
-    8.6
+    8.2
    ],
    [
     "real/parcel-Redmond",
-    9.3
-   ],
-   [
-    "real/parcel-Seattle",
-    8.5
-   ],
-   [
-    "index/Covington",
-    8.3
+    8.7
    ]
   ],
   "failing": []
@@ -822,7 +802,7 @@
     "index": 3
    },
    "normandy park": {
-    "own": 21,
+    "own": 22,
     "index": 8
    },
    "north bend": {

@@ -108,12 +108,6 @@
     "shoreline"
    ]
   },
-  "Inactive": {
-   "is_open": false,
-   "sources": [
-    "lni"
-   ]
-  },
   "Inspections Complete": {
    "is_open": false,
    "sources": [
@@ -192,16 +186,16 @@
     "lama:seatac"
    ]
   },
-  "RECORDS ARCHIVED": {
-   "is_open": false,
-   "sources": [
-    "shoreline"
-   ]
-  },
   "Ready to Issue": {
    "is_open": true,
    "sources": [
     "bellevue"
+   ]
+  },
+  "Skip - No Reinspect": {
+   "is_open": true,
+   "sources": [
+    "renton"
    ]
   },
   "Under Review": {
@@ -225,9 +219,10 @@
    ]
   }
  },
- "checked_at": "2026-10-26T19:48:46+00:00",
+ "checked_at": "2026-11-02T22:37:30+00:00",
  "summary": {
-  "ok": 27
+  "ok": 26,
+  "missing": 1
  },
  "sources": {
   "renton": {
@@ -235,14 +230,10 @@
    "outcome": "ok",
    "records": 24,
    "detail": "24 records",
-   "elapsed_ms": 2317,
+   "elapsed_ms": 1990,
    "statuses": {
     "Pass": {
-     "n": 8,
-     "is_open": true
-    },
-    "Fail": {
-     "n": 5,
+     "n": 9,
      "is_open": true
     },
     "Cancel - Reinspect": {
@@ -250,6 +241,10 @@
      "is_open": true
     },
     "Issued": {
+     "n": 3,
+     "is_open": true
+    },
+    "Fail": {
      "n": 3,
      "is_open": true
     },
@@ -264,6 +259,10 @@
     "Withdrawn": {
      "n": 1,
      "is_open": false
+    },
+    "Skip - No Reinspect": {
+     "n": 1,
+     "is_open": true
     }
    }
   },
@@ -272,7 +271,7 @@
    "outcome": "ok",
    "records": 131,
    "detail": "131 records",
-   "elapsed_ms": 8850,
+   "elapsed_ms": 1666,
    "statuses": {
     "Completed": {
      "n": 105,
@@ -309,7 +308,7 @@
    "outcome": "ok",
    "records": 356,
    "detail": "356 records",
-   "elapsed_ms": 186,
+   "elapsed_ms": 46,
    "statuses": {
     "Closed": {
      "n": 234,
@@ -358,21 +357,17 @@
    "outcome": "ok",
    "records": 53,
    "detail": "53 records",
-   "elapsed_ms": 2818,
+   "elapsed_ms": 7238,
    "statuses": {
     "ARCHIVED": {
-     "n": 8,
-     "is_open": false
-    },
-    "DESTROYED": {
-     "n": 5,
+     "n": 4,
      "is_open": false
     },
     "CLOSED": {
      "n": 3,
      "is_open": false
     },
-    "RECORDS ARCHIVED": {
+    "DESTROYED": {
      "n": 2,
      "is_open": false
     },
@@ -387,7 +382,7 @@
    "outcome": "ok",
    "records": 32,
    "detail": "32 records",
-   "elapsed_ms": 5172,
+   "elapsed_ms": 19603,
    "statuses": {
     "Finaled": {
      "n": 24,
@@ -412,7 +407,7 @@
    "outcome": "ok",
    "records": 9,
    "detail": "9 records",
-   "elapsed_ms": 931,
+   "elapsed_ms": 453,
    "statuses": {
     "Finaled": {
      "n": 4,
@@ -433,7 +428,7 @@
    "outcome": "ok",
    "records": 14,
    "detail": "14 records",
-   "elapsed_ms": 761,
+   "elapsed_ms": 429,
    "statuses": {
     "Closed": {
      "n": 6,
@@ -458,7 +453,7 @@
    "outcome": "ok",
    "records": 22,
    "detail": "22 records",
-   "elapsed_ms": 1757,
+   "elapsed_ms": 17955,
    "statuses": {
     "Closed": {
      "n": 13,
@@ -491,7 +486,7 @@
    "outcome": "ok",
    "records": 2,
    "detail": "2 records",
-   "elapsed_ms": 822,
+   "elapsed_ms": 798,
    "statuses": {
     "Closed": {
      "n": 1,
@@ -508,7 +503,7 @@
    "outcome": "ok",
    "records": 178,
    "detail": "178 records; non-fatal: showing first 200 of 343 matches — narrow the search",
-   "elapsed_ms": 6332,
+   "elapsed_ms": 5402,
    "statuses": {
     "Permit Finalized": {
      "n": 138,
@@ -537,28 +532,24 @@
    "outcome": "ok",
    "records": 7,
    "detail": "7 records",
-   "elapsed_ms": 1140,
+   "elapsed_ms": 1200,
    "statuses": {}
   },
   "lni": {
    "label": "WA State L&I (electrical)",
-   "outcome": "ok",
-   "records": 12,
-   "detail": "12 records",
-   "elapsed_ms": 4311,
-   "statuses": {
-    "Inactive": {
-     "n": 12,
-     "is_open": false
-    }
-   }
+   "outcome": "missing",
+   "records": 0,
+   "detail": "Could not connect to permit search: HTTP Error 404: Not Found",
+   "elapsed_ms": 339,
+   "statuses": {},
+   "changed_from": "ok"
   },
   "mbp:auburn": {
    "label": "Auburn (MyBuildingPermit)",
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 3058,
+   "elapsed_ms": 960,
    "statuses": {}
   },
   "mbp:bellevue": {
@@ -566,7 +557,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1932,
+   "elapsed_ms": 1030,
    "statuses": {}
   },
   "mbp:bothell": {
@@ -574,7 +565,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 541,
+   "elapsed_ms": 523,
    "statuses": {}
   },
   "mbp:burien": {
@@ -582,7 +573,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 896,
+   "elapsed_ms": 1503,
    "statuses": {}
   },
   "mbp:edmonds": {
@@ -590,7 +581,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 876,
+   "elapsed_ms": 965,
    "statuses": {}
   },
   "mbp:federal way": {
@@ -598,7 +589,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 3574,
+   "elapsed_ms": 611,
    "statuses": {}
   },
   "mbp:issaquah": {
@@ -606,7 +597,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 558,
+   "elapsed_ms": 768,
    "statuses": {}
   },
   "mbp:kenmore": {
@@ -614,7 +605,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 515,
+   "elapsed_ms": 507,
    "statuses": {}
   },
   "mbp:king county": {
@@ -622,7 +613,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 636,
+   "elapsed_ms": 518,
    "statuses": {}
   },
   "mbp:kirkland": {
@@ -630,7 +621,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 672,
+   "elapsed_ms": 719,
    "statuses": {}
   },
   "mbp:mercer island": {
@@ -638,7 +629,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 563,
+   "elapsed_ms": 878,
    "statuses": {}
   },
   "mbp:mill creek": {
@@ -646,7 +637,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 703,
+   "elapsed_ms": 677,
    "statuses": {}
   },
   "mbp:newcastle": {
@@ -654,7 +645,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 600,
+   "elapsed_ms": 699,
    "statuses": {}
   },
   "mbp:sammamish": {
@@ -662,7 +653,7 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 605,
+   "elapsed_ms": 1002,
    "statuses": {}
   },
   "mbp:snoqualmie": {
@@ -670,37 +661,32 @@
    "outcome": "ok",
    "records": 1,
    "detail": "1 records",
-   "elapsed_ms": 1125,
+   "elapsed_ms": 983,
    "statuses": {}
   }
  },
  "qc": {
-  "passed": 28,
-  "failed": 0,
+  "passed": 26,
+  "failed": 2,
   "errored": 0,
   "slow": [
    [
-    "real/Shoreline",
-    9.2
+    "real/parcel-Renton",
+    16.1
    ],
    [
-    "real/Vashon(unincorp)",
-    9.2
+    "real/parcel-Redmond",
+    11.2
    ],
    [
-    "real/parcel-Seattle",
-    14.4
-   ],
-   [
-    "fallback/Kent",
-    8.5
-   ],
-   [
-    "index/Covington",
-    8.7
+    "real/permit-Woodv",
+    8.1
    ]
   ],
-  "failing": []
+  "failing": [
+   "fake/Woodv",
+   "fake/nocity"
+  ]
  },
  "scorecard_qc": {
   "tally": {
@@ -726,7 +712,7 @@
     "index": 5
    },
    "bellevue": {
-    "own": 360,
+    "own": 361,
     "index": 0
    },
    "black diamond": {
@@ -786,7 +772,7 @@
     "index": 7
    },
    "kirkland": {
-    "own": 2,
+    "own": 13,
     "index": 0
    },
    "lake forest park": {
@@ -854,7 +840,7 @@
     "index": 3
    },
    "snoqualmie": {
-    "own": 57,
+    "own": 58,
     "index": 0
    },
    "tukwila": {

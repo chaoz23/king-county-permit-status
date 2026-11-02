@@ -204,7 +204,7 @@
    "electrical_searched": true,
    "history_index": "King County Assessor parcel index",
    "records_at_qc_address": {
-    "live": 360,
+    "live": 361,
     "index": 0
    },
    "routing_by_type": {
@@ -1052,7 +1052,7 @@
    "electrical_searched": true,
    "history_index": "King County Assessor parcel index",
    "records_at_qc_address": {
-    "live": 2,
+    "live": 13,
     "index": 0
    },
    "routing_by_type": {
@@ -1953,7 +1953,7 @@
    "electrical_searched": true,
    "history_index": "King County Assessor parcel index",
    "records_at_qc_address": {
-    "live": 57,
+    "live": 58,
     "index": 0
    },
    "routing_by_type": {

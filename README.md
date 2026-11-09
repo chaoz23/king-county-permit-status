@@ -127,14 +127,14 @@ Auto-generated from `routing_data.json` (`python3 scripts/gen_scorecard.py --wri
 
 **Legend** — ✅ live (status + history) · 🗂️ index (valuation-reported building history · the number after ✅/🗂️ in Building is the record count at the city's QC address (see `qc_addresses.json`) — how much is really behind the row from the King County Assessor's parcel index — no status, no sub-permits, dense since ~2023) · ➖ L&I electrical only (2020+) · ⚠️ gap (city self-runs electrical, not yet integrated)
 
-**Health** = last weekly live probe of the city's source (`scripts/source_health.py`, 2026-11-02): ✅ answered with records · ⚪ answered, zero rows for a known-good query · ⛔ blocked (403) · ❌ down · ❔ unchecked · — no live source
+**Health** = last weekly live probe of the city's source (`scripts/source_health.py`, 2026-11-09): ✅ answered with records · ⚪ answered, zero rows for a known-good query · ⛔ blocked (403) · ❌ down · ❔ unchecked · — no live source
 
 | City | Status | Source | Health | Building | Electrical | Mech/Plumb | Land Use |
 |---|---|---|---|---|---|---|---|
 | Algona | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
 | Auburn | 🟢 Live | MyBuildingPermit | ✅ | ✅ 133 | ➖ L&I | ✅ | ✅ |
 | Beaux Arts Village | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 5 | ➖ L&I | 🗂️ index | 🗂️ index |
-| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ 361 | ✅ | ✅ | ✅ |
+| Bellevue | 🟢 Live | Bellevue (Open Data) | ✅ | ✅ 363 | ✅ | ✅ | ✅ |
 | Black Diamond | 🟠 Indexed | KC Assessor index | ✅ | 🗂️ index 2 | ➖ L&I | 🗂️ index | 🗂️ index |
 | Bothell | 🟢 Live | MyBuildingPermit | ✅ | ✅ 117 | ➖ L&I | ✅ | ✅ |
 | Burien | 🟢 Live | MyBuildingPermit | ✅ | ✅ 27 | ✅ | ✅ | ✅ |

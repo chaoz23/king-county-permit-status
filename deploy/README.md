@@ -38,6 +38,9 @@ network; Caddy gets one more site block.
 
 - Smoke: `curl 'https://permits-api.secondlandings.ai/api/lookup?q=1817+Morris+Ave+S,+Renton+WA'`
 - MCP: point any Streamable-HTTP client at `https://permits-api.secondlandings.ai/mcp`
-  (no auth). `server.json` is the MCP Registry manifest — publish with
-  `mcp-publisher` once the URL answers; list on Glama / Docker MCP registry the same way.
+  (no auth). `server.json` is the MCP Registry manifest. `.github/workflows/publish-registry.yml`
+  publishes it on a Release or by hand (`gh workflow run publish-registry.yml`) using GitHub
+  OIDC, so no registry login or secret is needed — bump `version` in `server.json` first (the
+  job skips if that version is already published). Glama reads the live server; mcptry copies
+  the registry every 30 minutes.
 - Rate limits are per client IP (30/min) and global (300/min); tune via env in `compose.yaml`.

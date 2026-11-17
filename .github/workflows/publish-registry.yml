@@ -1,0 +1,96 @@
+name: Publish to MCP Registry
+
+# Publishes server.json to the official MCP Registry with GitHub's OIDC token:
+# no secret, no browser login (the io.github.chaoz23 namespace is verified from
+# the repository owner). Runs on a published Release, alongside the deploy, or
+# by hand. When the manifest's version is already in the registry the job
+# skips cleanly, so re-running a release is harmless. mcp-publisher is pinned
+# to a release and its Sigstore bundle is verified before it runs, per the
+# registry's own GitHub Actions guide.
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-registry-permits
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Skip if this version is already in the registry
+        id: check
+        run: |
+          set -euo pipefail
+          name=$(python3 -c 'import json; print(json.load(open("server.json"))["name"])')
+          version=$(python3 -c 'import json; print(json.load(open("server.json"))["version"])')
+          enc=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$name")
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+            "https://registry.modelcontextprotocol.io/v0/servers/$enc/versions/$version" || echo 000)
+          echo "$name $version -> registry HTTP $code"
+          {
+            echo "name=$name"; echo "version=$version"; echo "enc=$enc"
+            if [ "$code" = "200" ]; then echo "skip=true"; else echo "skip=false"; fi
+          } >> "$GITHUB_OUTPUT"
+          if [ "$code" = "200" ]; then
+            echo "::notice::$name $version is already published; nothing to do."
+          fi
+
+      - name: Install cosign
+        if: steps.check.outputs.skip != 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          archive="mcp-publisher_${os}_${arch}.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+          ./mcp-publisher --version
+
+      - name: Validate manifest
+        if: steps.check.outputs.skip != 'true'
+        run: ./mcp-publisher validate
+
+      - name: Authenticate (GitHub OIDC)
+        if: steps.check.outputs.skip != 'true'
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        if: steps.check.outputs.skip != 'true'
+        run: ./mcp-publisher publish
+
+      - name: Confirm the registry entry
+        if: steps.check.outputs.skip != 'true'
+        env:
+          ENC: ${{ steps.check.outputs.enc }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          curl -fsS --max-time 20 "https://registry.modelcontextprotocol.io/v0/servers/$ENC/versions/$VERSION" \
+            | python3 -c 'import json, sys; d = json.load(sys.stdin); s = d["server"]; m = d["_meta"]["io.modelcontextprotocol.registry/official"]; print(s["name"], s["version"], "latest" if m.get("isLatest") else "not latest"); print("title:", s.get("title")); print("website:", s.get("websiteUrl")); print("icon:", (s.get("icons") or [{}])[0].get("src"))'

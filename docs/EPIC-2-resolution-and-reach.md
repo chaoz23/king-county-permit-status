@@ -22,7 +22,7 @@ what is their status*. Anything that changes that purpose is a separate tool.
 | 8 | #26 | **Close** — the 8 small towns are fingerprinted: no portal; Assessor-indexed; rows proven by QC. | — |
 | 9 | #56 | **Decide.** Pierce-side records are Pierce County's; this is a King County tool. Default: close as out-of-scope now that Pierce parcels resolve (`pierce:<APN>`) and are labelled. Reopens only if Pierce's PALS exposes a public search cheaply. | — |
 | 10 | #60, #18, #21, #23 | **Stay open, documented in the vendor map** as blocked (LAMA paging needs a browser capture; PermitTrax = Blazor; OpenGov = Turnstile; Tukwila = login). | — |
-| 11 | release | `server.py` VERSION → 1.1.0; deploy; registry `server.json` version bump (publish needs Dan's `mcp-publisher`); umbrella #25 updated. | S |
+| 11 | release | `server.py` VERSION → 1.1.0; deploy; registry `server.json` version bump (published 2026-11-17 by `publish-registry.yml`, GitHub OIDC); umbrella #25 updated. | S |
 | 12 | QC pass | unit suite · `qc_smoke` · `qc_scorecard` (40 cities) · `source_health --write` · hosted smoke (MCP handshake, shaped call, REST). Results posted on #25. | — |
 
 ## Acceptance
@@ -40,5 +40,5 @@ Open by design: #60, #18, #21, #23 (documented in the vendor map).
 
 Final QC: unit 267/267 · health 27/27 · smoke 28/28 · scorecard 39 PASS / 1 WARN (Milton) /
 0 FAIL · hosted 1.1.0 verified (`/healthz`, `/vendor-map`, MCP args, contractor REST).
-Registry re-publish of `server.json` 1.1.0 pending (`mcp-publisher publish`).
+Registry entry 1.1.0 published 2026-11-17 (title, website and icon included) by `.github/workflows/publish-registry.yml`, which authenticates with GitHub OIDC so no local login is needed; it runs on every Release from here on.
 
